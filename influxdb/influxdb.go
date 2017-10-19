@@ -26,9 +26,9 @@ type DataAdder interface {
 }
 
 // NewDBConnection is used to create a new client and return influxdb handle
-func NewDBConnection(user string, pass string, addr string, db string, InsecureSkipVerify bool) (*Influxdb, error) {
+func NewDBConnection(user string, pass string, addr string, db string, insecureSkipVerify bool) (*Influxdb, error) {
 	zap.L().Debug("Initializing InfluxDBConnection")
-	httpClient, err := createHTTPClient(user, pass, addr, InsecureSkipVerify)
+	httpClient, err := createHTTPClient(user, pass, addr, insecureSkipVerify)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing url %s", err)
 	}
@@ -120,7 +120,6 @@ func (d *Influxdb) AddData(tags map[string]string, fields map[string]interface{}
 		Database:  d.database,
 		Precision: "us",
 	})
-	zap.L().Debug("Calling AddData 1", zap.Any("tags", tags), zap.Any("fields", fields))
 	if err != nil {
 		return fmt.Errorf("Couldn't add data, error creating batchpoint: %s", err)
 	}
@@ -138,11 +137,9 @@ func (d *Influxdb) AddData(tags map[string]string, fields map[string]interface{}
 		}
 		bp.AddPoint(pt)
 	}
-	zap.L().Debug("Calling AddData 2", zap.Any("tags", tags), zap.Any("fields", fields))
 	if err := d.httpClient.Write(bp); err != nil {
 		return fmt.Errorf("Couldn't add data: %s", err)
 	}
-	zap.L().Debug("Calling AddData 3", zap.Any("tags", tags), zap.Any("fields", fields))
 
 	return nil
 }
