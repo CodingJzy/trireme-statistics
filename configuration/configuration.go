@@ -30,14 +30,14 @@ DB Options:
 		--db-user=<user>          Username of the database [default: aporeto].
 		--db-pass=<pass>         Password of the database [default: aporeto].
 		--db-name=<name>         Name of the database [default: flowDB].
-		--db-address=<address>   Address to connect to DB [default: http://influxdb:8086]
-		--db-skip-tls=<skiptls>  Is valid TLS required for the DB server ? [default: true]
+		--db-address=<address>   Address to connect to DB [default: http://influxdb:8086].
+		--db-skip-tls=<skiptls>  Is valid TLS required for the DB server ? [default: true].
 
 UI Options:
 		--ui-user=<user>       Username of the UI to connect with [default: admin].
 		--ui-pass=<pass>       Password of the UI to connect with [default: admin].
-		--ui-db-address=<address>   Address to connect to UI [default: http://grafana:3000]
-		--ui-db-access=<access>   Access to connect to DB [default: proxy]
+		--ui-db-address=<address>   Address to connect to UI [default: http://grafana:3000].
+		--ui-db-access=<access>   Access to connect to DB [default: proxy].
 
 Log Options:	
 		--log-level=<loglevel>    Log level[default: info].
