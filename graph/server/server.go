@@ -32,16 +32,16 @@ type Links struct {
 }
 
 // GetData is called by the client which generates json with a logic that defines the nodes and links
-func GetData(httpClient *influxdb.Influxdb) http.HandlerFunc {
+func GetData(httpClient *influxdb.Influxdb, dbname string) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, r *http.Request) {
 
-		res, err := getContainerEvents(httpClient)
+		res, err := getContainerEvents(httpClient, dbname)
 		if err != nil {
 			http.Error(w, err.Error(), 0)
 		}
 
-		jsonData, err := transform(res, httpClient)
+		jsonData, err := transform(res, httpClient, dbname)
 		if err != nil {
 			http.Error(w, err.Error(), 2)
 		}
@@ -75,9 +75,9 @@ func GetGraph(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 }
 
-func getContainerEvents(httpClient *influxdb.Influxdb) (*client.Response, error) {
+func getContainerEvents(httpClient *influxdb.Influxdb, dbname string) (*client.Response, error) {
 
-	res, err := executeQuery("SELECT * FROM ContainerEvents", httpClient)
+	res, err := executeQuery("SELECT * FROM ContainerEvents", httpClient, dbname)
 	if err != nil {
 		return nil, fmt.Errorf("Error: Resource Unavailabe %s", err)
 	}
@@ -85,9 +85,9 @@ func getContainerEvents(httpClient *influxdb.Influxdb) (*client.Response, error)
 	return res, nil
 }
 
-func getFlowEvents(httpClient *influxdb.Influxdb) (*client.Response, error) {
+func getFlowEvents(httpClient *influxdb.Influxdb, dbname string) (*client.Response, error) {
 
-	res, err := executeQuery("SELECT * FROM FlowEvents", httpClient)
+	res, err := executeQuery("SELECT * FROM FlowEvents", httpClient, dbname)
 	if err != nil {
 		return nil, fmt.Errorf("Error: Resource Unavailabe %s", err)
 	}
@@ -95,9 +95,9 @@ func getFlowEvents(httpClient *influxdb.Influxdb) (*client.Response, error) {
 	return res, nil
 }
 
-func executeQuery(query string, httpClient *influxdb.Influxdb) (*client.Response, error) {
+func executeQuery(query string, httpClient *influxdb.Influxdb, dbname string) (*client.Response, error) {
 
-	res, err := httpClient.ExecuteQuery(query, "flowDB")
+	res, err := httpClient.ExecuteQuery(query, dbname)
 	if err != nil {
 		return nil, fmt.Errorf("Error: Resource Unavailabe %s", err)
 	}
@@ -105,18 +105,18 @@ func executeQuery(query string, httpClient *influxdb.Influxdb) (*client.Response
 	return res, nil
 }
 
-func deleteContainerEvents(id []string, httpClient *influxdb.Influxdb) ([]Nodes, error) {
+func deleteContainerEvents(id []string, httpClient *influxdb.Influxdb, dbname string) ([]Nodes, error) {
 	var node Nodes
 	var nodes []Nodes
 
 	for i := 0; i < len(id); i++ {
-		_, err := executeQuery("DELETE FROM \"ContainerEvents\" WHERE \"EventID\" = '"+id[i]+"'", httpClient)
+		_, err := executeQuery("DELETE FROM \"ContainerEvents\" WHERE \"EventID\" = '"+id[i]+"'", httpClient, dbname)
 		if err != nil {
 			return nil, fmt.Errorf("Error: Executing Query %s", err)
 		}
 	}
 
-	res, _ := getContainerEvents(httpClient)
+	res, _ := getContainerEvents(httpClient, dbname)
 
 	for j := 0; j < len(res.Results[0].Series[0].Values); j++ {
 		node.ID = res.Results[0].Series[0].Values[j][1].(string)
@@ -136,7 +136,7 @@ func deleteContainerEvents(id []string, httpClient *influxdb.Influxdb) ([]Nodes,
 // the nodes are extracted from the influx data and stored in the array of structure
 // then later this array is sent to the link generator which process the links between the nodes
 // the link generator basically generates the link by comparing the nodeip with the flows src and dst ip's
-func transform(res *client.Response, httpClient *influxdb.Influxdb) (*GraphData, error) {
+func transform(res *client.Response, httpClient *influxdb.Influxdb, dbname string) (*GraphData, error) {
 	var nodes []Nodes
 	var links []Links
 	var node Nodes
@@ -161,7 +161,7 @@ func transform(res *client.Response, httpClient *influxdb.Influxdb) (*GraphData,
 					}
 				} else {
 					id = append(id, res.Results[0].Series[0].Values[j][1].(string))
-					nodes, err = deleteContainerEvents(id, httpClient)
+					nodes, err = deleteContainerEvents(id, httpClient, dbname)
 					if err != nil {
 						return nil, fmt.Errorf("Error: Reading from Resoponse %s", err)
 					}
@@ -170,7 +170,7 @@ func transform(res *client.Response, httpClient *influxdb.Influxdb) (*GraphData,
 		}
 	}
 
-	links, err = generateLinks(nodes, httpClient)
+	links, err = generateLinks(nodes, httpClient, dbname)
 	if err != nil {
 		return nil, fmt.Errorf("Error: Generating Links %s", err)
 	}
@@ -180,9 +180,9 @@ func transform(res *client.Response, httpClient *influxdb.Influxdb) (*GraphData,
 	return &jsonData, nil
 }
 
-func generateLinks(nodea []Nodes, httpClient *influxdb.Influxdb) ([]Links, error) {
+func generateLinks(nodea []Nodes, httpClient *influxdb.Influxdb, dbname string) ([]Links, error) {
 
-	res, err := getFlowEvents(httpClient)
+	res, err := getFlowEvents(httpClient, dbname)
 	if err != nil {
 		return nil, fmt.Errorf("Error: Retriving Flow Events %s", err)
 	}

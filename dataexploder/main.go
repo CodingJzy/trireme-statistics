@@ -22,9 +22,9 @@ func explode() {
 	var contModel models.ContainerModel
 	var source collector.EndPoint
 	var destination collector.EndPoint
-	samplesize := 50
+	samplesize := 500
 	counter := 0
-	httpCli, _ := influxdb.NewDBConnection("aporeto", "aporeto", "http://35.188.37.9:8086")
+	httpCli, _ := influxdb.NewDBConnection("aporeto", "aporeto", "http://35.188.37.9:8086", "flowDB", false)
 
 	httpCli.Start()
 	for i := 0; i < samplesize; i++ {

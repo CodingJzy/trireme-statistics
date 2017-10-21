@@ -42,9 +42,12 @@ _______________________________________________________________
 func main() {
 	banner(version.VERSION, version.REVISION)
 
-	cfg := configuration.NewConfiguration()
+	cfg, err := configuration.LoadConfiguration()
+	if err != nil {
+		log.Fatal("Error parsing configuration", err)
+	}
 
-	err := setLogs(cfg.LogFormat, cfg.LogLevel)
+	err = setLogs(cfg.LogFormat, cfg.LogLevel)
 	if err != nil {
 		log.Fatalf("Error setting up logs: %s", err)
 	}
@@ -59,14 +62,14 @@ func main() {
 	// Creating grafana dashboards
 	err = setupGrafana(cfg.UIUserName, cfg.UIPassword, cfg.UIAddress, cfg.UIDBAccess, cfg.DBUserName, cfg.DBPassword, cfg.DBAddress, cfg.DBName)
 	if err != nil {
-		zap.L().Fatal("Error: Initiating Connection to DB", zap.Error(err))
+		zap.L().Fatal("Error: Connecting to GrafanaServer", zap.Error(err))
 	}
 
 	// serveGraph is blocking
 	go func() {
-		err = serveGraph(influxClient, cfg.ListenAddress)
+		err = serveGraph(influxClient, cfg.ListenAddress, cfg.DBName)
 		if err != nil {
-			zap.L().Fatal("Error: Initiating Connection to DB", zap.Error(err))
+			zap.L().Fatal("Error: Connecting to GraphServer", zap.Error(err))
 		}
 	}()
 
@@ -140,9 +143,10 @@ func setupGrafana(uiUser, uiPassword, uiAddress, uiAccess, influxUser, influxPas
 	return nil
 }
 
-func serveGraph(influxClient *influxdb.Influxdb, listenAddress string) error {
+func serveGraph(influxClient *influxdb.Influxdb, listenAddress string, dbname string) error {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/get", server.GetData(influxClient))
+
+	mux.HandleFunc("/get", server.GetData(influxClient, dbname))
 	mux.HandleFunc("/graph", server.GetGraph)
 
 	handler := cors.Default().Handler(mux)
