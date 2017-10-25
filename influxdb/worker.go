@@ -116,6 +116,7 @@ func (w *worker) doCollectFlowEvent(record *collector.FlowRecord) error {
 		"DestinationIP":   record.Destination.IP,
 		"DestinationPort": record.Destination.Port,
 		"DestinationType": record.Destination.Type,
+		"Tags":            record.Tags,
 		"Action":          record.Action,
 		"DropReason":      record.DropReason,
 		"PolicyID":        record.PolicyID,
