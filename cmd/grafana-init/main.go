@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,13 +11,9 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/rs/cors"
-
-	"github.com/aporeto-inc/trireme-csr/version"
-	"github.com/aporeto-inc/trireme-statistics/configuration"
-	"github.com/aporeto-inc/trireme-statistics/grafana"
-	"github.com/aporeto-inc/trireme-statistics/graph/server"
-	"github.com/aporeto-inc/trireme-statistics/influxdb"
+	"github.com/aporeto-inc/trireme-statistics/grafana/configuration"
+	"github.com/aporeto-inc/trireme-statistics/grafana/grafanalib"
+	"github.com/aporeto-inc/trireme-statistics/version"
 )
 
 func banner(version, revision string) {
@@ -30,7 +25,7 @@ func banner(version, revision string) {
 	   | || '__| | '__/ _ \ '_'' _ \ / _ \
 	   | || |  | | | |  __/ | | | | |  __/
 	   |_||_|  |_|_|  \___|_| |_| |_|\___|
-		STATISTICS
+		GRAFANA-INITIALIZER
 
 _______________________________________________________________
              %s - %s
@@ -54,24 +49,11 @@ func main() {
 
 	zap.L().Debug("Config used", zap.Any("Config", cfg))
 
-	influxClient, err := influxdb.NewDBConnection(cfg.DBUserName, cfg.DBPassword, cfg.DBAddress, cfg.DBName, cfg.DBSkipTLS)
-	if err != nil {
-		zap.L().Fatal("Error: Initiating Connection to DB", zap.Error(err))
-	}
-
 	// Creating grafana dashboards
-	err = setupGrafana(cfg.UIUserName, cfg.UIPassword, cfg.UIAddress, cfg.UIDBAccess, cfg.DBUserName, cfg.DBPassword, cfg.DBAddress, cfg.DBName)
+	err = setupGrafana(cfg.GrafanaUsername, cfg.GrafanaPassword, cfg.GrafanaURL, cfg.GrafanaDBAccess, cfg.InfluxUsername, cfg.InfluxPassword, cfg.InfluxURL, cfg.InfluxDBName)
 	if err != nil {
 		zap.L().Fatal("Error: Connecting to GrafanaServer", zap.Error(err))
 	}
-
-	// serveGraph is blocking
-	go func() {
-		err = serveGraph(influxClient, cfg.ListenAddress, cfg.DBName)
-		if err != nil {
-			zap.L().Fatal("Error: Connecting to GraphServer", zap.Error(err))
-		}
-	}()
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
@@ -79,6 +61,26 @@ func main() {
 	// Waiting for a Sig
 	<-c
 
+}
+
+// setupGrafana sets up Grafana to create the Flow and Container dashboard
+func setupGrafana(uiUser, uiPassword, uiAddress, uiAccess, influxUser, influxPassword, influxAddress, influxDB string) error {
+
+	grafanaClient, err := grafana.NewUISession(uiUser, uiPassword, uiAddress)
+	if err != nil {
+		return fmt.Errorf("Error: Initiating Connection to Grafana Server %s", err)
+	}
+
+	err = grafanaClient.CreateDataSource("Events", influxDB, influxUser, influxPassword, influxAddress, uiAccess)
+	if err != nil {
+		return fmt.Errorf("Error: Creating Datasource %s", err)
+	}
+
+	grafanaClient.CreateDashboard("StatisticBoard")
+	grafanaClient.AddRows(grafana.SingleStat, "events", "Action", "FlowEvents")
+	grafanaClient.AddRows(grafana.SingleStat, "events", "IPAddress", "ContainerEvents")
+
+	return nil
 }
 
 // setLogs setups Zap to log at the specified log level and format
@@ -121,41 +123,5 @@ func setLogs(logFormat, logLevel string) error {
 	}
 
 	zap.ReplaceGlobals(logger)
-	return nil
-}
-
-// setupGrafana sets up Grafana to create the Flow and Container dashboard
-func setupGrafana(uiUser, uiPassword, uiAddress, uiAccess, influxUser, influxPassword, influxAddress, influxDB string) error {
-	grafanaClient, err := grafana.NewUISession(uiUser, uiPassword, uiAddress)
-	if err != nil {
-		return fmt.Errorf("Error: Initiating Connection to Grafana Server %s", err)
-	}
-
-	err = grafanaClient.CreateDataSource("Events", influxDB, influxUser, influxPassword, influxDB, uiAccess)
-	if err != nil {
-		return fmt.Errorf("Error: Creating Datasource %s", err)
-	}
-
-	grafanaClient.CreateDashboard("StatisticBoard")
-	grafanaClient.AddRows(grafana.SingleStat, "events", "Action", "FlowEvents")
-	grafanaClient.AddRows(grafana.SingleStat, "events", "IPAddress", "ContainerEvents")
-
-	return nil
-}
-
-func serveGraph(influxClient *influxdb.Influxdb, listenAddress string, dbname string) error {
-	mux := http.NewServeMux()
-
-	mux.HandleFunc("/get", server.GetData(influxClient, dbname))
-	mux.HandleFunc("/graph", server.GetGraph)
-
-	handler := cors.Default().Handler(mux)
-
-	err := http.ListenAndServe(listenAddress, handler)
-	if err != nil {
-		return fmt.Errorf("ListenAndServe: %s", err)
-	}
-
-	fmt.Println("Server Listening at ", listenAddress)
 	return nil
 }

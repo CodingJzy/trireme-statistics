@@ -1,11 +1,6 @@
-VERSION_FILE := ./version/version.go
-PROJECT_NAME := trireme-statistics
-BUILD_NUMBER := latest
 VERSION := 0.11
+VERSION_FILE := ./version/version.go
 REVISION=$(shell git log -1 --pretty=format:"%H")
-DOCKER_REGISTRY?=aporeto
-DOCKER_IMAGE_NAME?=$(PROJECT_NAME)
-DOCKER_IMAGE_TAG?=$(BUILD_NUMBER)
 
 codegen:
 	echo 'package version' > $(VERSION_FILE)
@@ -17,26 +12,19 @@ codegen:
 	echo 'const REVISION = "$(REVISION)"' >> $(VERSION_FILE)
 
 build: codegen
-	env GOOS=linux GOARCH=386 go build
-	mv trireme-statistics collector
-	rm -f trireme-statistics
-
-package: build
-	mv collector docker/collector
-
-bindata:
-	cd graph; go-bindata -pkg=graph html/...
+	cd cmd/grafana-init && make build
+	cd ../..
+	cd cmd/trireme-graph && make build
 
 clean:
 	rm -rf vendor
-	rm -rf docker/collector
 
-docker_build: package
-		docker \
-			build \
-			-t $(DOCKER_REGISTRY)/$(DOCKER_IMAGE_NAME):$(DOCKER_IMAGE_TAG) docker
+docker_build:
+	cd cmd/grafana-init && make docker_build
+	cd ../..
+	cd cmd/trireme-graph && make docker_build
 
-docker_push: docker_build
-		docker \
-			push \
-			$(DOCKER_REGISTRY)/$(DOCKER_IMAGE_NAME):$(DOCKER_IMAGE_TAG)
+docker_push:
+	cd cmd/grafana-init && make docker_push
+	cd ../..
+	cd cmd/trireme-graph && make docker_push

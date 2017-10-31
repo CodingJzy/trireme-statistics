@@ -1,6 +1,9 @@
 collector
 docker/collector
 graph/bindata.go
-dataexploder/dataexploder
+cmd/dataexploder/dataexploder
+grafana/docker/grafana
 glide.lock
 vendor
+cmd/grafana-init/grafana-init
+cmd/trireme-graph/trireme-statistics

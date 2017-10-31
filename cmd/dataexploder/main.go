@@ -24,7 +24,7 @@ func explode() {
 	var destination collector.EndPoint
 	samplesize := 500
 	counter := 0
-	httpCli, _ := influxdb.NewDBConnection("aporeto", "aporeto", "http://35.188.37.9:8086", "flowDB", false)
+	httpCli, _ := influxdb.NewDBConnection("aporeto", "aporeto", "http://influxdb:8086", "flowDB", false)
 
 	httpCli.Start()
 	for i := 0; i < samplesize; i++ {
@@ -49,7 +49,7 @@ func explode() {
 		flowModel.FlowRecord.Destination = &destination
 
 		var tags policy.TagStore
-		tags.Tags = []string{"server"}
+		tags.Tags = []string{"&{[k8s-app=kube-dns pod-template-hash=3468831164 @namespace=kube-system AporetoContextID=02f4ebf65b05]}"}
 		flowModel.FlowRecord.Tags = &tags
 		var actype policy.ActionType
 		actype.Accepted()
@@ -60,7 +60,7 @@ func explode() {
 
 		httpCli.CollectFlowEvent(&flowModel.FlowRecord)
 		var policy policy.TagStore
-		policy.Tags = []string{"@sys=name @app=web"}
+		policy.Tags = []string{"&{[@sys:image=gcr.io/google_containers/pause-amd64:3.0 @sys:name=/k8s_POD_aporeto-collector-13rvx_kube-system_b86c7f27-ba0d-11e7-8725-42010a8001d7_0 @usr:io.kubernetes.pod.namespace=kube-system @usr:io.kubernetes.pod.uid=b86c7f27-ba0d-11e7-8725-42010a8001d7 @usr:annotation.kubernetes.io/config.source=api @usr:io.kubernetes.container.name=POD @usr:io.kubernetes.docker.type=podsandbox @usr:io.kubernetes.pod.name=aporeto-collector-13rvx @usr:annotation.kubernetes.io/config.seen=2017-10-26T05:22:54.960841543Z @usr:annotation.kubernetes.io/created-by={\"kind\":\"SerializedReference\",\"apiVersion\":\"v1\",\"reference\":{\"kind\":\"ReplicaSet\",\"namespace\":\"kube-system\",\"name\":\"aporeto-collector\",\"uid\":\"b86841e6-ba0d-11e7-8725-42010a8001d7\",\"apiVersion\":\"extensions\",\"resourceVersion\":\"1837901\"}} @usr:app=aporeto-collector]}"}
 		contModel.ContainerRecord.ContextID = "1ascasd7t"
 		contModel.ContainerRecord.Event = "start"
 		contModel.ContainerRecord.Tags = &policy

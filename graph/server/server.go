@@ -6,65 +6,139 @@ import (
 	"html/template"
 	"net/http"
 	"strings"
+	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/aporeto-inc/trireme-statistics/influxdb"
 	"github.com/influxdata/influxdb/client/v2"
 )
 
-// GraphData is the struct that holds the json format required for graph to generate nodes and link
-type GraphData struct {
-	Nodes []Nodes `json:"nodes"`
-	Links []Links `json:"links"`
-}
+// NewGraph is the handler for graph generators
+func NewGraph(httpClient *influxdb.Influxdb, dbname string) *Graph {
 
-// Nodes which holds pu information
-type Nodes struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	IPAddress string `json:"ipaddress"`
-}
-
-// Links which holds the links between pu's
-type Links struct {
-	Source int    `json:"source"`
-	Target int    `json:"target"`
-	Action string `json:"action"`
-}
-
-// GetData is called by the client which generates json with a logic that defines the nodes and links
-func GetData(httpClient *influxdb.Influxdb, dbname string) http.HandlerFunc {
-
-	return func(w http.ResponseWriter, r *http.Request) {
-
-		res, err := getContainerEvents(httpClient, dbname)
-		if err != nil {
-			http.Error(w, err.Error(), 0)
-		}
-
-		jsonData, err := transform(res, httpClient, dbname)
-		if err != nil {
-			http.Error(w, err.Error(), 2)
-		}
-
-		err = json.NewEncoder(w).Encode(jsonData)
-		if err != nil {
-			http.Error(w, err.Error(), 3)
-		}
+	return &Graph{
+		httpClient: httpClient,
+		dbname:     dbname,
+		nodesChan:  make(chan []Nodes),
+		linksChan:  make(chan []Links),
 	}
 }
 
+// GetData is called by the client which generates json with a logic that defines the nodes and links for graph
+func (g *Graph) GetData(w http.ResponseWriter, r *http.Request) {
+	var graphData *GraphData
+
+	starttime, err := time.Parse(time.RFC3339, r.URL.Query().Get("starttime")+"Z")
+	if err != nil {
+		zap.L().Warn("Error: Parsing Time ", zap.Error(err))
+	}
+
+	endtime, err := time.Parse(time.RFC3339, r.URL.Query().Get("endtime")+"Z")
+	if err != nil {
+		zap.L().Warn("Error: Parsing Time ", zap.Error(err))
+	}
+
+	namespace := r.URL.Query().Get("namespace")
+
+	if r.URL.Query().Get("starttime") != "" || r.URL.Query().Get("endtime") != "" || namespace != "" {
+		// Launching parallely to aggregate nodes and links for given input
+		go g.FindLinksBetweenGivenTimeAndOrNamespace(starttime, endtime, namespace)
+		go g.FindNodesBetweenGivenTimeAndOrNamespace(starttime, endtime, namespace)
+		graphData = &GraphData{Nodes: <-g.nodesChan, Links: <-g.linksChan}
+	} else {
+		graphData = g.jsonData
+	}
+
+	err = json.NewEncoder(w).Encode(graphData)
+	if err != nil {
+		http.Error(w, err.Error(), 3)
+	}
+}
+
+// FindNodesBetweenGivenTimeAndOrNamespace will aggregate nodes within the specified time, namespaces or both
+func (g *Graph) FindNodesBetweenGivenTimeAndOrNamespace(starttime time.Time, endtime time.Time, namespace string) {
+	var nodes []Nodes
+
+	for _, node := range g.jsonData.Nodes {
+		switch {
+		case node.Time.After(starttime) && node.Time.Before(endtime) && node.Namespace == namespace:
+			nodes = append(nodes, node)
+		case node.Time.After(starttime) && node.Time.Before(endtime) && namespace == "":
+			nodes = append(nodes, node)
+		case node.Namespace == namespace:
+			nodes = append(nodes, node)
+		}
+	}
+	g.nodesChan <- nodes
+	return
+}
+
+// FindLinksBetweenGivenTimeAndOrNamespace will aggregate links within the specified time, namespaces or both
+func (g *Graph) FindLinksBetweenGivenTimeAndOrNamespace(starttime time.Time, endtime time.Time, namespace string) {
+	var links []Links
+
+	for _, link := range g.jsonData.Links {
+		switch {
+		case link.Time.After(starttime) && link.Time.Before(endtime) && link.Namespace == namespace:
+			links = append(links, link)
+		case link.Time.After(starttime) && link.Time.Before(endtime) && namespace == "":
+			links = append(links, link)
+		case link.Namespace == namespace:
+			links = append(links, link)
+		default:
+			links = append(links, DefaultLink())
+		}
+	}
+	g.linksChan <- links
+	return
+}
+
+// Start is used to start generating jsonData for every 15 seconds
+func (g *Graph) Start(interval int) {
+	zap.L().Info("Starting to Generate JSON every", zap.Any("Interval", interval))
+	go func() {
+		for range time.Tick(time.Second * time.Duration(interval)) {
+			res, err := g.getContainerEvents()
+			if err != nil {
+				zap.L().Error("Error: Retrieving container events from DB", zap.Error(err))
+			}
+			g.jsonData, err = g.transform(res)
+			if err != nil {
+				zap.L().Error("Error: Transforming to nodes and links", zap.Error(err))
+			}
+		}
+	}()
+}
+
 // GetGraph is used to parse html with custom address to request for json
-func GetGraph(w http.ResponseWriter, r *http.Request) {
+func (g *Graph) GetGraph(w http.ResponseWriter, r *http.Request) {
 
 	htmlData, err := template.New("graph").Parse(js)
 	if err != nil {
 		http.Error(w, err.Error(), 0)
 	}
 
+	graphDataAddress := r.URL.Query().Get("address")
+	if graphDataAddress == "" {
+		graphDataAddress = defaultGraphDataAddress
+	}
+
+	r.ParseForm()
+
 	data := struct {
 		Address string
 	}{
-		Address: r.URL.Query().Get("address"),
+		Address: graphDataAddress,
+	}
+
+	switch {
+	case len(r.Form["starttime"]) > 0 && len(r.Form["endtime"]) > 0 && len(r.Form["namespace"]) > 0:
+		data.Address = data.Address + "?starttime=" + r.Form["starttime"][0] + "&endtime=" + r.Form["endtime"][0] + "&namespace=" + r.Form["namespace"][0]
+	case len(r.Form["starttime"]) > 0 && len(r.Form["endtime"]) > 0:
+		data.Address = data.Address + "?starttime=" + r.Form["starttime"][0] + "&endtime=" + r.Form["endtime"][0]
+	case len(r.Form["namespace"]) > 0:
+		data.Address = data.Address + "?namespace=" + r.Form["namespace"][0]
 	}
 
 	err = htmlData.Execute(w, data)
@@ -75,9 +149,9 @@ func GetGraph(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 }
 
-func getContainerEvents(httpClient *influxdb.Influxdb, dbname string) (*client.Response, error) {
-
-	res, err := executeQuery("SELECT * FROM ContainerEvents", httpClient, dbname)
+func (g *Graph) getContainerEvents() (*client.Response, error) {
+	zap.L().Info("Retrieving ContainerEvents from DB")
+	res, err := g.executeQuery(ContainerEventsQuery)
 	if err != nil {
 		return nil, fmt.Errorf("Error: Resource Unavailabe %s", err)
 	}
@@ -85,9 +159,9 @@ func getContainerEvents(httpClient *influxdb.Influxdb, dbname string) (*client.R
 	return res, nil
 }
 
-func getFlowEvents(httpClient *influxdb.Influxdb, dbname string) (*client.Response, error) {
-
-	res, err := executeQuery("SELECT * FROM FlowEvents", httpClient, dbname)
+func (g *Graph) getFlowEvents(httpClient *influxdb.Influxdb, dbname string) (*client.Response, error) {
+	zap.L().Info("Retrieving FlowEvents from DB")
+	res, err := g.executeQuery(FlowEventsQuery)
 	if err != nil {
 		return nil, fmt.Errorf("Error: Resource Unavailabe %s", err)
 	}
@@ -95,9 +169,9 @@ func getFlowEvents(httpClient *influxdb.Influxdb, dbname string) (*client.Respon
 	return res, nil
 }
 
-func executeQuery(query string, httpClient *influxdb.Influxdb, dbname string) (*client.Response, error) {
+func (g *Graph) executeQuery(query string) (*client.Response, error) {
 
-	res, err := httpClient.ExecuteQuery(query, dbname)
+	res, err := g.httpClient.ExecuteQuery(query, g.dbname)
 	if err != nil {
 		return nil, fmt.Errorf("Error: Resource Unavailabe %s", err)
 	}
@@ -105,29 +179,23 @@ func executeQuery(query string, httpClient *influxdb.Influxdb, dbname string) (*
 	return res, nil
 }
 
-func deleteContainerEvents(id []string, httpClient *influxdb.Influxdb, dbname string) ([]Nodes, error) {
-	var node Nodes
-	var nodes []Nodes
+func (g *Graph) deleteContainerEvents(contextIDs []string) []Nodes {
 
-	for i := 0; i < len(id); i++ {
-		_, err := executeQuery("DELETE FROM \"ContainerEvents\" WHERE \"EventID\" = '"+id[i]+"'", httpClient, dbname)
-		if err != nil {
-			return nil, fmt.Errorf("Error: Executing Query %s", err)
+	for _, node := range g.nodes {
+		for _, contextID := range contextIDs {
+			if node.ContextID == contextID {
+				node.Delete = true
+			}
 		}
 	}
 
-	res, _ := getContainerEvents(httpClient, dbname)
-
-	for j := 0; j < len(res.Results[0].Series[0].Values); j++ {
-		node.ID = res.Results[0].Series[0].Values[j][1].(string)
-		if res.Results[0].Series[0].Values[j][6].(string) != "" {
-			name := getName(res.Results[0].Series[0].Values[j][6].(string))
-			node.Name = name
+	for k := len(g.nodes) - 1; k >= 0; k-- {
+		if g.nodes[k].Delete {
+			g.nodes = append(g.nodes[:k], g.nodes[k+1:]...)
 		}
-		nodes = append(nodes, node)
 	}
 
-	return nodes, nil
+	return g.nodes
 }
 
 // transform will convert the JSON response from influxdb to nodes and links to generate graph
@@ -136,114 +204,191 @@ func deleteContainerEvents(id []string, httpClient *influxdb.Influxdb, dbname st
 // the nodes are extracted from the influx data and stored in the array of structure
 // then later this array is sent to the link generator which process the links between the nodes
 // the link generator basically generates the link by comparing the nodeip with the flows src and dst ip's
-func transform(res *client.Response, httpClient *influxdb.Influxdb, dbname string) (*GraphData, error) {
-	var nodes []Nodes
-	var links []Links
+func (g *Graph) transform(res *client.Response) (*GraphData, error) {
+	zap.L().Info("Transforming to Nodes and Links")
 	var node Nodes
-	var err error
-	var id []string
-	var startEvents = []string{"start", "update", "create"}
+	var contextID []string
+	g.links = nil
+	var startEvents = []string{ContainerUpdate}
 
 	if len(res.Results[0].Series) > 0 {
-		if res.Results[0].Series[0].Name == "ContainerEvents" {
-			for j := 0; j < len(res.Results[0].Series[0].Values); j++ {
-				if res.Results[0].Series[0].Values[j][2].(string) != "delete" {
-					for k := 0; k < len(startEvents); k++ {
-						if res.Results[0].Series[0].Values[j][2].(string) == startEvents[k] {
-							node.ID = res.Results[0].Series[0].Values[j][1].(string)
-							node.IPAddress = res.Results[0].Series[0].Values[j][5].(string)
-							if res.Results[0].Series[0].Values[j][6].(string) != "" {
-								name := getName(res.Results[0].Series[0].Values[j][6].(string))
-								node.Name = name
+		if res.Results[0].Series[0].Name == ContainerEvent {
+			for _, containerEvent := range res.Results[0].Series[0].Values {
+				if containerEvent[2] == ContainerUpdate {
+					for k := range startEvents {
+						if containerEvent[2].(string) == startEvents[k] {
+							time, err := time.Parse(time.RFC3339, containerEvent[0].(string))
+							if err != nil {
+								return nil, fmt.Errorf("Error: Parsing Time %s", err)
 							}
-							nodes = append(nodes, node)
+							node.Time = time
+							node.ContextID = containerEvent[1].(string)
+							node.IPAddress = containerEvent[5].(string)
+							node.IPIDHash = getHash(containerEvent[1].(string), containerEvent[5].(string))
+							if containerEvent[6].(string) != "" {
+								node.Namespace = g.parseTag(containerEvent[6].(string), PODNamespaceFromContainerTags)
+								node.PodName = g.parseTag(containerEvent[6].(string), PODNameFromContainerTags)
+							}
+							g.removeDuplicateNodes(node)
 						}
 					}
-				} else {
-					id = append(id, res.Results[0].Series[0].Values[j][1].(string))
-					nodes, err = deleteContainerEvents(id, httpClient, dbname)
-					if err != nil {
-						return nil, fmt.Errorf("Error: Reading from Resoponse %s", err)
-					}
+				} else if containerEvent[2].(string) == ContainerDelete {
+					contextID = append(contextID, containerEvent[1].(string))
 				}
+			}
+			if len(contextID) > 0 {
+				g.deleteContainerEvents(contextID)
 			}
 		}
 	}
 
-	links, err = generateLinks(nodes, httpClient, dbname)
+	err := g.generateLinks()
 	if err != nil {
 		return nil, fmt.Errorf("Error: Generating Links %s", err)
 	}
 
-	jsonData := GraphData{Nodes: nodes, Links: links}
+	jsonData := GraphData{Nodes: g.nodes, Links: g.links}
 
 	return &jsonData, nil
 }
 
-func generateLinks(nodea []Nodes, httpClient *influxdb.Influxdb, dbname string) ([]Links, error) {
+func (g *Graph) generateLinks() error {
 
-	res, err := getFlowEvents(httpClient, dbname)
+	res, err := g.getFlowEvents(g.httpClient, g.dbname)
 	if err != nil {
-		return nil, fmt.Errorf("Error: Retriving Flow Events %s", err)
+		return fmt.Errorf("Error: Retrieving Flow Events %s", err)
 	}
 
-	var links []Links
 	var link Links
-	var isSrc, isDst bool
+	var isSrcPod, isDstPod bool
 
 	if len(res.Results[0].Series) > 0 {
-		if res.Results[0].Series[0].Name == "FlowEvents" {
-			for j := 0; j < len(res.Results[0].Series[0].Values); j++ {
-				for i := 0; i < len(nodea); i++ {
-					if nodea[i].IPAddress == res.Results[0].Series[0].Values[j][5] {
-						link.Target = i
-						isSrc = true
-					} else if nodea[i].IPAddress == res.Results[0].Series[0].Values[j][13] {
-						link.Source = i
-						isDst = true
+		if res.Results[0].Series[0].Name == FlowEvent {
+			for _, flowEvent := range res.Results[0].Series[0].Values {
+				for _, node := range g.nodes {
+					if node.IPIDHash == getHash(flowEvent[2].(string), flowEvent[5].(string)) {
+						link.Target = node.ContextID
+						isDstPod = true
+					} else if node.IPIDHash == getHash(flowEvent[12].(string), flowEvent[13].(string)) {
+						link.Source = node.ContextID
+						isSrcPod = true
 					}
 				}
-				if isSrc && isDst {
-					link.Action = res.Results[0].Series[0].Values[j][1].(string)
-					links = append(links, link)
-					isSrc = false
-					isDst = false
+				if isSrcPod && isDstPod && link.Source != "" && link.Target != "" {
+					link.Action = flowEvent[1].(string)
+					link.Namespace = g.parseTag(flowEvent[16].(string), PODNamespaceFromFlowTags)
+					time, err := time.Parse(time.RFC3339, flowEvent[0].(string))
+					if err != nil {
+						return fmt.Errorf("Error: Parsing Time %s", err)
+					}
+					link.Time = time
+					g.removeDuplicateLinks(link)
+					g.checkIfReject(link)
+					isSrcPod = false
+					isDstPod = false
 				}
+				link.Source = ""
+				link.Target = ""
 			}
 		}
 	}
 
-	if len(links) == 0 {
-		link.Source = 0
-		link.Target = 0
-		links = append(links, link)
+	if len(g.links) == 0 {
+		g.links = append(g.links, DefaultLink())
 	}
 
-	return links, nil
+	return nil
 }
 
-func getName(tag string) string {
-	var name string
+func (g *Graph) removeDuplicateNodes(node Nodes) []Nodes {
+	var isNodePresent bool
 
-	if strings.Contains(tag, "@usr:io.kubernetes.pod.name") {
-		eachTag := strings.Split(tag, " ")
-		for i := 0; i < len(eachTag); i++ {
-			podName := strings.SplitAfter(eachTag[i], "=")
-			for j := 0; j < len(podName); j++ {
-				if podName[j] == "@usr:io.kubernetes.pod.name=" {
-					name = podName[1]
-				}
-			}
+	for l := range g.nodes {
+		if g.nodes[l].IPIDHash == node.IPIDHash {
+			isNodePresent = true
 		}
-	} else {
-		eachTag := strings.Split(tag, " ")
-		containerName := strings.SplitAfter(eachTag[0], "=")
-		if containerName != nil {
-			name = containerName[1]
-		} else {
-			name = "unknown"
+	}
+	if !isNodePresent {
+		g.nodes = append(g.nodes, node)
+	}
+
+	return g.nodes
+}
+
+func (g *Graph) removeDuplicateLinks(targetLink Links) []Links {
+	var isLinkPresent bool
+
+	for _, link := range g.links {
+		if link.Source == targetLink.Source && link.Target == targetLink.Target && link.Action == targetLink.Action {
+			isLinkPresent = true
 		}
 	}
 
-	return name
+	if !isLinkPresent {
+		g.links = append(g.links, targetLink)
+	}
+
+	return g.links
+}
+
+func (g *Graph) checkIfReject(targetLink Links) []Links {
+	var rejectedLink Links
+
+	for _, link := range g.links {
+		if link.Source == targetLink.Source && link.Target == targetLink.Target && link.Action != targetLink.Action {
+			if link.Action == FlowAccept && targetLink.Action == FlowReject {
+				rejectedLink.Namespace = link.Namespace
+				rejectedLink.Time = link.Time
+				rejectedLink.Source = link.Source
+				rejectedLink.Target = link.Target
+				rejectedLink.Action = FlowNowRejected
+			}
+		}
+	}
+
+	if rejectedLink.Action != "" {
+		g.links = g.removeDuplicateLinks(rejectedLink)
+	}
+
+	return g.links
+}
+
+func (g *Graph) parseTag(tag string, parseType string) string {
+	var result string
+
+	switch parseType {
+	case PODNameFromContainerTags:
+		result = g.getNameOrNamespaceFromTag(tag, PODNameFromContainerTags)
+	case PODNamespaceFromContainerTags:
+		result = g.getNameOrNamespaceFromTag(tag, PODNamespaceFromContainerTags)
+	case PODNamespaceFromFlowTags:
+		result = g.getNameOrNamespaceFromTag(tag, PODNamespaceFromFlowTags)
+	}
+
+	return result
+}
+
+func (g *Graph) getNameOrNamespaceFromTag(tags string, tagExtractor string) string {
+
+	if strings.Contains(tags, tagExtractor) {
+		for _, tag := range strings.Split(tags, " ") {
+			tagCollection := strings.SplitAfter(tag, "=")
+			for _, tagcollection := range tagCollection {
+				g.extractTagValue(tagCollection, tagcollection, tagExtractor)
+			}
+		}
+	}
+
+	return g.tagValue
+}
+
+func (g *Graph) extractTagValue(tagCollection []string, tagcollection string, tagExtractor string) {
+
+	if tagcollection == tagExtractor+"=" || tagcollection == "&{["+tagExtractor+"=" {
+		if index := strings.IndexByte(tagCollection[1], ']'); index >= 0 {
+			g.tagValue = tagCollection[1][:index]
+		} else {
+			g.tagValue = tagCollection[1]
+		}
+	}
 }

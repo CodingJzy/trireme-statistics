@@ -60,7 +60,7 @@ func createHTTPClient(user string, pass string, addr string, InsecureSkipVerify 
 		Addr:               addr,
 		Username:           user,
 		Password:           pass,
-		Timeout:            time.Second,
+		Timeout:            time.Minute,
 		InsecureSkipVerify: InsecureSkipVerify,
 	})
 	if err != nil {
@@ -85,9 +85,14 @@ func (d *Influxdb) CreateDB(dbname string) error {
 // ExecuteQuery is used to execute a query given a database name
 func (d *Influxdb) ExecuteQuery(query string, dbname string) (*client.Response, error) {
 
-	q := client.NewQuery(query, dbname, "")
+	q := client.Query{
+		Command:  query,
+		Database: dbname,
+		Chunked:  false,
+	}
+
 	response, err := d.httpClient.Query(q)
-	if err != nil && response.Error() != nil {
+	if err != nil {
 		return nil, err
 	}
 

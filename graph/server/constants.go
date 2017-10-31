@@ -1,146 +1,51 @@
 package server
 
-const js = `
+const defaultGraphDataAddress = "/get"
 
+const (
+	// ContainerEventsQuery is the query used to retrieve ContainerEvents from database
+	ContainerEventsQuery = "SELECT * FROM ContainerEvents"
+	// FlowEventsQuery is the query used to retrieve FlowEvents from database
+	FlowEventsQuery = "SELECT * FROM FlowEvents"
+)
 
-<!DOCTYPE html>
-<meta charset="utf-8">
-<style>
+const (
+	// FlowReject indicates that a flow was rejected
+	FlowReject = "reject"
+	// FlowAccept logs that a flow is accepted
+	FlowAccept = "accept"
+	// FlowNowRejected logs that a flow is accepted and later rejected
+	FlowNowRejected = "nowrejected"
+	// ContainerStart indicates a container start event
+	ContainerStart = "start"
+	// ContainerStop indicates a container stop event
+	ContainerStop = "stop"
+	// ContainerCreate indicates a container create event
+	ContainerCreate = "create"
+	// ContainerDelete indicates a container delete event
+	ContainerDelete = "delete"
+	// ContainerUpdate indicates a container policy update event
+	ContainerUpdate = "update"
+	// ContainerFailed indicates an event that a container was stopped because of policy issues
+	ContainerFailed = "forcestop"
+	// ContainerIgnored indicates that the container will be ignored by Trireme
+	ContainerIgnored = "ignore"
+	// UnknownContainerDelete indicates that policy for an unknown  container was deleted
+	UnknownContainerDelete = "unknowncontainer"
+)
 
-.link {
-  stroke: #ccc;
-}
+const (
+	// ContainerEvent is the Container events measurement name
+	ContainerEvent = "ContainerEvents"
+	// FlowEvent is the Flow events measurement name
+	FlowEvent = "FlowEvents"
+)
 
-#accept {
-  fill: green;
-}
-
-.link.accept {
-  stroke: green;
-}
-
-#reject {
-  fill: red;
-}
-
-.link.reject {
-  stroke: red;
-}
-
-#nowaccepted {
-  fill: orange;
-}
-
-.link.nowaccepted{
-  stroke: orange;
-}
-
-.node circle {
-  fill: #ccc;
-  stroke: #fff;
-  stroke-width: 1.5px;
-}
-
-.node text {
-  pointer-events: none;
-  font-size: : 10px;
-  font-family: "Lucida Console", Monaco, monospace;
-  text-shadow: 0 1px 0 #fff, 1px 0 0 #fff, 0 -1px 0 #fff, -1px 0 0 #fff;
-}
-
-</style>
-<body>
-<script src="//d3js.org/d3.v3.min.js"></script>
-<script>
-
-var width = 960,
-    height = 500
-
-var svg = d3.select("body").append("svg")
-    .attr("width", width)
-    .attr("height", height);
-
-var force = d3.layout.force()
-    .gravity(0.05)
-    .distance(100)
-    .charge(-100)
-    .size([width, height]);
-
-d3.json({{.Address}}, function(error, json) {
-  if (error) throw error;
-
-  force
-      .nodes(json.nodes)
-      .links(json.links)
-      .start();
-
-
-  svg.append("svg:defs").selectAll("marker")
-      .data(["accept","reject","nowaccepted"])
-    .enter().append("svg:marker")
-      .attr("id", String)
-      .attr("viewBox", "0 -5 10 10")
-      .attr("refX", 0)
-      .attr("refY", 0)
-      .attr("markerWidth", 6)
-      .attr("markerHeight", 6)
-      .attr("orient", "auto")
-    .append("svg:path")
-      .attr("d", "M0,-5L10,0L0,5");
-
-  var link = svg.selectAll(".link")
-      .data(json.links)
-    .enter().append("polyline")
-      .attr("class", function(d) { return "link " + d.action; })
-      .attr("marker-mid", function(d) { return "url(#" + d.action + ")"; });
-
-  var node = svg.selectAll(".node")
-      .data(json.nodes)
-    .enter().append("g")
-      .attr("class", "node")
-      .on("mouseover", mouseover)
-      .on("mouseout", mouseout)
-      .call(force.drag);
-
-  node.append("circle")
-      .attr("r", 9);
-  // node.append("image")
-  //     .attr("xlink:href", "https://github.com/favicon.ico")
-  //     .attr("x", -8)
-  //     .attr("y", -8)
-  //     .attr("width", 16)
-  //     .attr("height", 16);
-
-  node.append("title")
-      .text(function(d) { return d.id; });
-
-
-  node.append("text")
-      .attr("dx", 12)
-      .attr("dy", ".35em")
-      .text(function(d) { return d.name });
-
-      force.on("tick", function() {
-         link.attr("points", function(d) {
-            return d.source.x + "," + d.source.y + " " +
-                   (d.source.x + d.target.x)/2 + "," + (d.source.y + d.target.y)/2 + " " +
-                   d.target.x + "," + d.target.y; });
-
-    node.attr("transform", function(d) { return "translate(" + d.x + "," + d.y + ")"; });
-  });
-
-function mouseover() {
-  d3.select(this).select("circle").transition()
-      .duration(750)
-      .attr("r", 16);
-}
-
-function mouseout() {
-  d3.select(this).select("circle").transition()
-      .duration(750)
-      .attr("r", 8);
-}
-});
-
-</script>
-`
+const (
+	// PODNameFromContainerTags is tha tag used to retrieve pod name from tags in ContainerEvents
+	PODNameFromContainerTags = "@usr:io.kubernetes.pod.name"
+	// PODNamespaceFromContainerTags is the tag used to retrieve pod namespace from tags in ContainerEvents
+	PODNamespaceFromContainerTags = "@usr:io.kubernetes.pod.namespace"
+	// PODNamespaceFromFlowTags is the tag used to retrieve flow associated to a particular pod namespace from tags in FlowEvents
+	PODNamespaceFromFlowTags = "@namespace"
+)

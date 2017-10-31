@@ -35,3 +35,7 @@ services:
       - "3000:3000"
     volumes:
       - /var/lib/grafana
+  grafana_initializer:
+    build: ../../grafana/docker
+    depends_on:
+      - "grafana"

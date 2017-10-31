@@ -1,3 +1,6 @@
+package server
+
+const js = `
 <!DOCTYPE html>
 <meta charset="utf-8">
 <style>
@@ -40,53 +43,52 @@
         font: 9px "Lucida Console", Monaco, monospace;
     }
 
-    .namespace{
-      width: 220px;
-      border: 1px solid black;
-      border-radius: 4px;
-      margin-bottom: 1px;
+    .namespace {
+        width: 220px;
+        border: 1px solid black;
+        border-radius: 4px;
+        margin-bottom: 1px;
     }
 
-    .submit{
-      border: 1px solid black;
-      border-radius: 4px;
-      font-size: 12px;
+    .submit {
+        border: 1px solid black;
+        border-radius: 4px;
+        font-size: 12px;
     }
 
-    .endtime{
-      margin-left: 19px;
-      width: 220px;
-      border: 1px solid black;
-      border-radius: 4px;
+    .endtime {
+        margin-left: 19px;
+        width: 220px;
+        border: 1px solid black;
+        border-radius: 4px;
     }
 
-    .starttime{
-      margin-left: 14px;
-      width: 220px;
-      border: 1px solid black;
-      border-radius: 4px;
+    .starttime {
+        margin-left: 14px;
+        width: 220px;
+        border: 1px solid black;
+        border-radius: 4px;
     }
 
-    .set{
-      text-align: center;
-      font-family: sans-serif;
+    .set {
+        text-align: center;
+        font-family: sans-serif;
     }
 </style>
 
 <body>
     <form name="graphoptions" action="/graph">
-      <div class="set">
-        Start Time:
-        <input name="starttime" class="starttime" type="datetime-local" step="1">
-        <br> End Time:
-        <input name="endtime" class="endtime" type="datetime-local" step="1">
-        <br>
-        Namespace:
-        <input name="namespace" class="namespace" type="text">
-        <br>
-        <input type="submit" class="submit" value="Filter">
-    </div>
-  </form>
+        <div class="set">
+            Start Time:
+            <input name="starttime" class="starttime" type="datetime-local" step="1">
+            <br> End Time:
+            <input name="endtime" class="endtime" type="datetime-local" step="1">
+            <br> Namespace:
+            <input name="namespace" class="namespace" type="text">
+            <br>
+            <input type="submit" class="submit" value="Filter">
+        </div>
+    </form>
     <script src="//d3js.org/d3.v3.min.js"></script>
     <script>
         var width = 1000,
@@ -104,7 +106,7 @@
             .charge(-120)
             .size([850, 500]);
 
-        d3.json("data.json", function(error, json) {
+        d3.json({{.Address}}, function(error, json) {
             if (error) throw error;
 
             var edges = [];
@@ -202,3 +204,4 @@
             }
         });
     </script>
+`
