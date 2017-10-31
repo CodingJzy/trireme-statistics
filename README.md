@@ -1,61 +1,42 @@
 # trireme-statistics
 
-trireme-statistics is an aporeto statistics and metrics collector service
+trireme-statistics holds all the libraries and executables related to the metrics exported from the Trireme library.
 
-## containers launched
+More specifically:
+* Trireme-Graph: A simple graphic implementation of the traffic flowing in your cluster.
+* InfluxDB-Collector: A library implementing the collector interface from Trireme in order to send the data to InfluxDB.
+* Grafana-Initializer: A library that connects to Grafana and initializes a series of relevant metrics that show Trireme's activity.
 
-  - collector (generate the links and start server)
-  - influxdb (stats storage)
-  - grafana (metrics visualization)
-  - dataexploder (optional, for debugging)
+All of those can be launched as part of the Trireme-Kubernetes
 
-## to start the service
+# Trireme-Graph
 
-It is easy to start the service and it can be launched using both docker-compose and kubernetes
+Trireme-Graph is a simple implementation of a graphic display of all your network connections in a specific namespace for a specific timerange.
 
-First, From root directory go into collector
-  
-    $ cd collector
+Trireme-Graph can be launched on Kubernetes and will by default try to connect to an InfluxDB available at `influxdb:8086`
 
-and build the project using
+```
+ kubectl create -f https://github.com/aporeto-inc/trireme-kubernetes/blob/master/deployment/statistics/collector.yaml
+```
 
-    $ make install
-  
-That's it! Now launch the containers using either of the two methods below
+# InfluxDB-Collector
 
-## using docker-compose
+InfluxDB-Collector is an [Implementation](https://github.com/aporeto-inc/trireme/blob/master/collector/interfaces.go) of the Trireme Collector interface:
 
-From root root directory
+```
+// EventCollector is the interface for collecting events.
+type EventCollector interface {
 
-     $ cd deployments/docker-compose
-     
-and 
+	// CollectFlowEvent collect a  flow event.
+	CollectFlowEvent(record *FlowRecord)
 
-     $ docker-compose up
-     
-All containers will be launched
+	// CollectContainerEvent collects a container events
+	CollectContainerEvent(record *ContainerRecord)
+}
+```
 
-Now,
+which sends the events directly to InfluxDB.
 
- - goto http://localhost:3000 for grafna dashboards
+# Grafana-Initializer
 
- - goto http://localhost:8080/graph?address=/get for graph visualization
-    
-
-## using kubernetes
-
-From root root directory
-
-     $ cd deployments/kubernetes
-and 
-    
-     $ kubectl create -f .
-
-All containers will be launched as pods in kube cluster
-
-Now,
-
- - goto http://<externalIP/grafana>:3000 for grafana dashboards
-
- - goto http://<externalIP/collector>:8080/graph?address=/get for graph visualization
- 
+A library that connects to Grafana and initialize a dashboard with a couple predefined graphs that display information about the Data collected from Trireme into InfluxDB.
