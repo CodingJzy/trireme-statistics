@@ -82,9 +82,11 @@ func (w *worker) doCollectContainerEvent(record *collector.ContainerRecord) erro
 	switch record.Event {
 	case "start", "update", "create":
 		eventName = "ContainerStartEvents"
-
 	case "delete":
 		eventName = "ContainerStopEvents"
+	case "ignore":
+		// Used for non relevant container events.
+		return nil
 	default:
 		return fmt.Errorf("Unrecognized container event name %s ", record.Event)
 	}
