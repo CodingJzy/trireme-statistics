@@ -3,15 +3,12 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
-	"os/signal"
-	"syscall"
 	"time"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/aporeto-inc/trireme-statistics/grafana/configuration"
+	"github.com/aporeto-inc/trireme-statistics/configuration"
 	"github.com/aporeto-inc/trireme-statistics/grafana/grafanalib"
 	"github.com/aporeto-inc/trireme-statistics/version"
 )
@@ -55,12 +52,9 @@ func main() {
 		zap.L().Fatal("Error: Connecting to GrafanaServer", zap.Error(err))
 	}
 
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
-	zap.L().Info("Everything started. Waiting for Stop signal")
-	// Waiting for a Sig
-	<-c
+	zap.L().Info("Grafana configuration finished successfully. Exiting in 5 seconds")
 
+	<-time.After(time.Second * 5)
 }
 
 // setupGrafana sets up Grafana to create the Flow and Container dashboard
@@ -77,10 +71,35 @@ func setupGrafana(uiUser, uiPassword, uiAddress, uiAccess, influxUser, influxPas
 	}
 
 	grafanaClient.CreateDashboard("StatisticBoard")
-	grafanaClient.AddRows(grafana.SingleStat, "events", "Action", "FlowEvents")
-	grafanaClient.AddRows(grafana.SingleStat, "events", "IPAddress", "ContainerEvents")
+	initSingleStatPanels(grafanaClient)
+	initTablePanels(grafanaClient)
+	grafanaClient.CreateDashboard("Graphs")
+	initGraphPanels(grafanaClient)
 
 	return nil
+}
+
+func initSingleStatPanels(grafanaClient grafana.GrafanaManipulator) {
+	grafanaClient.CreateRow("SingleStat")
+	grafanaClient.AddPanel(grafana.SingleStat, grafana.ContainerEventsCount, grafana.ContainerEvent, []string{"IPAddress"})
+	grafanaClient.AddPanel(grafana.SingleStat, grafana.FlowEventsCount, grafana.FlowEvent, []string{"Action"})
+	grafanaClient.UploadToDashboard()
+}
+
+func initTablePanels(grafanaClient grafana.GrafanaManipulator) {
+	grafanaClient.CreateRow("Table")
+	FourTupleFields := []string{"Action", "SourceIP", "SourcePort", "DestinationIP", "DestinationPort", "Tags"}
+	grafanaClient.AddPanel(grafana.Table, grafana.FourTupleWithAction, grafana.FlowEvent, FourTupleFields)
+	grafanaClient.AddPanel(grafana.Table, grafana.ContainerEventFields, grafana.ContainerEvent, []string{grafana.AllFields})
+	grafanaClient.AddPanel(grafana.Table, grafana.FlowEventFields, grafana.FlowEvent, []string{grafana.AllFields})
+	grafanaClient.UploadToDashboard()
+}
+
+func initGraphPanels(grafanaClient grafana.GrafanaManipulator) {
+	grafanaClient.CreateRow("Graph")
+	grafanaClient.AddPanel(grafana.Graph, grafana.ContainerEventsGraph, grafana.ContainerEvent, []string{"ContextID", "IPAddress", "Tags"})
+	grafanaClient.AddPanel(grafana.Graph, grafana.FlowEventsGraph, grafana.FlowEvent, []string{"ContextID", "Tags"})
+	grafanaClient.UploadToDashboard()
 }
 
 // setLogs setups Zap to log at the specified log level and format
