@@ -5,6 +5,6 @@ RUN mkdir -p /opt/trireme
 
 ADD grafana-init /opt/trireme/grafana-init
 
-WORKDIR /opt/trireme/grafana-init
+WORKDIR /opt/trireme
 
 CMD ["./grafana-init"]

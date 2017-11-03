@@ -7,14 +7,14 @@ import (
 )
 
 // NewUISession is used to create a new session and return grafana handle
-func NewUISession(user string, pass string, addr string) (Grafanaui, error) {
+func NewUISession(user string, pass string, addr string) (GrafanaManipulator, error) {
 
 	session, err := createSession(user, pass, addr)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Grafanauis{
+	return &Grafana{
 		session: session,
 	}, nil
 }
@@ -31,7 +31,7 @@ func createSession(user string, pass string, addr string) (*grafanaclient.Sessio
 }
 
 // CreateDataSource is used to create a new datasource based on users arguements
-func (g *Grafanauis) CreateDataSource(name string, dbname string, dbuname string, dbpass string, dburl string, access string) error {
+func (g *Grafana) CreateDataSource(name string, dbname string, dbuname string, dbpass string, dburl string, access string) error {
 
 	datasourceName, err := g.session.GetDataSource(name)
 	if err != nil {
@@ -40,7 +40,7 @@ func (g *Grafanauis) CreateDataSource(name string, dbname string, dbuname string
 
 	if datasourceName.Name != name {
 		ds := grafanaclient.DataSource{Name: name,
-			Type:     "influxdb",
+			Type:     InfluxDB,
 			Access:   access,
 			URL:      dburl,
 			User:     dbuname,
@@ -58,77 +58,163 @@ func (g *Grafanauis) CreateDataSource(name string, dbname string, dbuname string
 }
 
 // CreateDashboard is used to create a new dashboard
-func (g *Grafanauis) CreateDashboard(dbtitle string) {
+func (g *Grafana) CreateDashboard(dbtitle string) {
 
 	dashboard := grafanaclient.Dashboard{Editable: true}
 	dashboard.Title = dbtitle
 	g.dashboard = &dashboard
 }
 
-// AddRows is used to add a new row in the dashboard
-func (g *Grafanauis) AddRows(panel PanelType, rowname string, fields string, events string) {
+// UploadToDashboard is used to push all created panels ans rows into the dashboard
+func (g *Grafana) UploadToDashboard() {
 
-	graphRow := grafanaclient.NewRow()
-	graphRow.Title = rowname
-	g.row = graphRow
+	for _, panel := range g.panelCollection {
+		g.Row.AddPanel(panel)
+	}
 
-	newpanel := g.AddCharts(panel, events, fields)
-
-	g.row.AddPanel(newpanel)
-
-	g.dashboard.AddRow(g.row)
-
-	g.UploadToDashboard()
-}
-
-// UploadToDashboard is used to push all created rows into the dashboard
-func (g *Grafanauis) UploadToDashboard() {
-
+	g.dashboard.AddRow(g.Row)
 	g.dashboard.SetTimeFrame(time.Now().Add(-5*time.Minute), time.Now().Add(10*time.Minute))
-
 	g.session.UploadDashboard(*g.dashboard, true)
+	g.panelCollection = nil
 }
 
-// AddCharts is used to add different charts into rows
-func (g *Grafanauis) AddCharts(paneltype PanelType, paneltitle string, fields string) grafanaclient.Panel {
+// CreateRow is used to create a new row in the dashboard
+func (g *Grafana) CreateRow(rowname string) {
 
-	graphPanel := grafanaclient.NewPanel()
+	newRow := grafanaclient.NewRow()
+	newRow.Title = rowname
+	newRow.Height = "250px"
+	g.Row = newRow
+}
 
-	graphPanel.Title = paneltitle
-	if paneltype == SingleStat {
-		graphPanel.Type = "singlestat"
-		graphPanel.DataSource = "Events"
+// AddPanel is used to add different panels into rows
+func (g *Grafana) AddPanel(paneltype PanelType, paneltitle string, measurement string, fields []string) grafanaclient.Panel {
+
+	g.panelInstance = grafanaclient.NewPanel()
+	g.panelInstance.DataSource = "Events"
+
+	switch paneltype {
+	case SingleStat:
+		g.generateSingleStatPanel(measurement, paneltitle, fields)
+	case Graph:
+		g.generateGraphPanel(measurement, paneltitle, fields)
+	case Table:
+		g.generateTablePanel(measurement, paneltitle, fields)
 	}
-	graphPanel.ValueName = "total"
-	graphPanel.Span = 12
-	graphPanel.Stack = true
-	graphPanel.Fill = 1
 
-	target := grafanaclient.NewTarget()
-	if paneltitle == "FlowEvents" {
-		target.Measurement = "FlowEvents"
-	} else if paneltitle == "ContainerEvents" {
-		target.Measurement = "ContainerEvents"
-	}
+	g.panelCollection = append(g.panelCollection, g.panelInstance)
 
-	var selectAttributeType grafanaclient.Select
-	selectAttributeType.Type = "field"
-	selectAttributeType.Params = []string{fields}
+	return g.panelInstance
+}
+
+// CreateTarget is used to create targets to query panels
+func (g *Grafana) CreateTarget(measurement string, fields []string, aggregateFunction string) {
 
 	var selectAttributeCount grafanaclient.Select
-	selectAttributeCount.Type = "count"
+	if aggregateFunction != "" {
+		selectAttributeCount.Type = aggregateFunction
+	}
 
+	for _, field := range fields {
+		target := grafanaclient.NewTarget()
+		target.Measurement = measurement
+		selectCollection := g.ConstructSelectQueriesFromFields([]string{field}, selectAttributeCount)
+		target.Select = selectCollection
+		target.Alias = field
+
+		g.panelInstance.AddTarget(target)
+	}
+}
+
+// ConstructSelectQueriesFromFields is used to create select queries for panels to visualize
+func (g *Grafana) ConstructSelectQueriesFromFields(fields []string, aggregareFuntionSelects grafanaclient.Select) []grafanaclient.Selects {
+
+	var selectAttribute grafanaclient.Select
 	var selectAttributeCollection grafanaclient.Selects
-	selectAttributeCollection = append(selectAttributeCollection, selectAttributeType)
-	selectAttributeCollection = append(selectAttributeCollection, selectAttributeCount)
-
 	var selectCollection []grafanaclient.Selects
-	selectCollection = append(selectCollection, selectAttributeCollection)
 
+	for _, field := range fields {
+		selectAttribute.Type = "field"
+		selectAttribute.Params = []string{field}
+		selectAttributeCollection = append(selectAttributeCollection, selectAttribute)
+		if aggregareFuntionSelects.Type != "" {
+			selectAttributeCollection = append(selectAttributeCollection, aggregareFuntionSelects)
+		}
+		selectCollection = append(selectCollection, selectAttributeCollection)
+		selectAttributeCollection = nil
+	}
+
+	return selectCollection
+}
+
+func (g *Grafana) generateGraphPanel(measurement string, paneltitle string, fields []string) {
+
+	g.panelInstance.Title = paneltitle
+	g.panelInstance.Type = "graph"
+	g.panelInstance.ValueName = "total"
+	g.panelInstance.Span = 12
+	g.panelInstance.Stack = true
+	g.panelInstance.Fill = 1
+
+	switch measurement {
+	case FlowEvent:
+		g.CreateTarget(FlowEvent, fields, Count)
+	case ContainerEvent:
+		g.CreateTarget(ContainerEvent, fields, Count)
+	}
+}
+
+func (g *Grafana) generateSingleStatPanel(measurement string, paneltitle string, fields []string) {
+
+	g.panelInstance.Title = paneltitle
+	g.panelInstance.Type = "singlestat"
+	g.panelInstance.ValueName = "total"
+	g.panelInstance.Span = 6
+	g.panelInstance.Stack = true
+	g.panelInstance.Fill = 1
+
+	target := grafanaclient.NewTarget()
+
+	switch measurement {
+	case FlowEvent:
+		target.Measurement = FlowEvent
+	case ContainerEvent:
+		target.Measurement = ContainerEvent
+	}
+
+	var selectAttributeCount grafanaclient.Select
+	selectAttributeCount.Type = Count
+	selectCollection := g.ConstructSelectQueriesFromFields(fields, selectAttributeCount)
 	target.Select = selectCollection
-	target.Alias = fields
 
-	graphPanel.AddTarget(target)
+	g.panelInstance.AddTarget(target)
+}
 
-	return graphPanel
+func (g *Grafana) generateTablePanel(measurement string, paneltitle string, fields []string) {
+
+	g.panelInstance.Title = paneltitle
+	g.panelInstance.Type = "table"
+	g.panelInstance.Span = 12
+	g.panelInstance.Stack = true
+	g.panelInstance.Fill = 1
+
+	target := grafanaclient.NewTarget()
+
+	switch measurement {
+	case FlowEvent:
+		target.Measurement = FlowEvent
+	case ContainerEvent:
+		target.Measurement = ContainerEvent
+	}
+
+	selectCollection := g.ConstructSelectQueriesFromFields(fields, DefaultSelectAttribute())
+	target.Select = selectCollection
+
+	groupBy := grafanaclient.NewGroupBy()
+	groupBy[0].Type = "tag"
+	groupBy[0].Params = []string{"EventName"}
+	target.GroupBy = groupBy
+	target.Format = "table"
+
+	g.panelInstance.AddTarget(target)
 }

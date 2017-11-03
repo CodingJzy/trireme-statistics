@@ -4,11 +4,13 @@ import (
 	"github.com/aporeto-inc/grafanaclient"
 )
 
-// Grafanaui is the interface which has all methods to interact with the grafana ui
-type Grafanaui interface {
+// GrafanaManipulator is the interface which has all methods to interact with the grafana ui
+type GrafanaManipulator interface {
 	CreateDataSource(name string, dbname string, dbuname string, dbpass string, dburl string, access string) error
 	CreateDashboard(dbr string)
-	AddCharts(panel PanelType, title string, fields string) grafanaclient.Panel
-	AddRows(panel PanelType, rowname string, paneltitle string, events string)
+	AddPanel(panel PanelType, title string, measurement string, fields []string) grafanaclient.Panel
+	CreateRow(rowname string)
+	CreateTarget(measurement string, fields []string, aggregateFunction string)
+	ConstructSelectQueriesFromFields(fields []string, aggregareFuntionSelects grafanaclient.Select) []grafanaclient.Selects
 	UploadToDashboard()
 }
