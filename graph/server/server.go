@@ -211,8 +211,8 @@ func (g *Graph) transform(res *client.Response) (*GraphData, error) {
 					tags = value.(string)
 				}
 				if event == ContainerUpdate {
-					for k := range startEvents {
-						if event == startEvents[k] {
+					for _, containerEvent := range startEvents {
+						if event == containerEvent {
 							ipIDHash := getHash(contextID, ipAddress)
 							if _, ok := g.nodeMap[ipIDHash]; !ok {
 								node.ContextID = contextID
