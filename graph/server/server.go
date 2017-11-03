@@ -286,7 +286,8 @@ func (g *Graph) generateLinks() error {
 
 				srcHash := getHash(srcID, srcIP)
 				dstHash := getHash(dstID, dstIP)
-				if _, ok := g.linkMap[srcHash+dstHash]; !ok {
+				key := srcHash + dstHash
+				if _, ok := g.linkMap[key]; !ok {
 					if srcNode, ok := g.nodeMap[srcHash]; ok {
 						link.Source = srcNode.ContextID
 					}
@@ -302,11 +303,11 @@ func (g *Graph) generateLinks() error {
 							return fmt.Errorf("Error: Parsing Time %s", err)
 						}
 						link.Time = parsedTime
-						g.linkMap[srcHash+dstHash] = &link
+						g.linkMap[key] = &link
 					}
 				} else {
-					if g.linkMap[srcHash+dstHash].Action != action {
-						g.linkMap[srcHash+dstHash].Action = FlowNowRejected
+					if g.linkMap[key].Action != action {
+						g.linkMap[key].Action = FlowNowRejected
 					}
 				}
 			}
