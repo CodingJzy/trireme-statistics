@@ -15,7 +15,7 @@ import (
 )
 
 // NewGraph is the handler for graph generators
-func NewGraph(httpClient *influxdb.Influxdb, dbname string) *Graph {
+func NewGraph(httpClient influxdb.DataAdder, dbname string) *Graph {
 
 	return &Graph{
 		httpClient: httpClient,
@@ -155,17 +155,17 @@ func (g *Graph) getContainerEvents() (*client.Response, error) {
 	zap.L().Info("Retrieving ContainerEvents from DB")
 	res, err := g.executeQuery(ContainerEventsQuery)
 	if err != nil {
-		return nil, fmt.Errorf("Error: Resource Unavailabe %s", err)
+		return nil, fmt.Errorf("Error: Executing Query %s", err)
 	}
 
 	return res, nil
 }
 
-func (g *Graph) getFlowEvents(httpClient *influxdb.Influxdb, dbname string) (*client.Response, error) {
+func (g *Graph) getFlowEvents(httpClient influxdb.DataAdder, dbname string) (*client.Response, error) {
 	zap.L().Info("Retrieving FlowEvents from DB")
 	res, err := g.executeQuery(FlowEventsQuery)
 	if err != nil {
-		return nil, fmt.Errorf("Error: Resource Unavailabe %s", err)
+		return nil, fmt.Errorf("Error: Executing Query %s", err)
 	}
 
 	return res, nil
@@ -359,6 +359,8 @@ func (g *Graph) parseTag(tag string, parseType string) string {
 		result = g.getNameOrNamespaceFromTag(tag, PODNamespaceFromContainerTags)
 	case PODNamespaceFromFlowTags:
 		result = g.getNameOrNamespaceFromTag(tag, PODNamespaceFromFlowTags)
+	default:
+		return ""
 	}
 
 	return result

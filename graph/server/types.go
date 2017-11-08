@@ -33,7 +33,7 @@ type Link struct {
 // Graph which holds the fields for graph creation
 type Graph struct {
 	jsonData   *GraphData
-	httpClient *influxdb.Influxdb
+	httpClient influxdb.DataAdder
 	dbname     string
 	nodes      []Node
 	links      []Link
