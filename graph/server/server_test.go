@@ -315,9 +315,9 @@ func TestParseTag(t *testing.T) {
 
 			Convey("Given I try to parse invalid tag", func() {
 				testFlowTag := "invalidTag"
-				flowNamespace := newTestGraph.parseTag(testFlowTag, "InvalidTagType")
+				invalidNameorNamespace := newTestGraph.parseTag(testFlowTag, "InvalidTagType")
 				Convey("I should see empty namespace", func() {
-					So(flowNamespace, ShouldEqual, "")
+					So(invalidNameorNamespace, ShouldEqual, "")
 				})
 			})
 		})
