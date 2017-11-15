@@ -24,30 +24,30 @@ func getSampleInlfuxDBResponse(eventType string) client.Response {
 		testValues := make([][]interface{}, 2)
 		testValues[0] = make([]interface{}, 7)
 		testValues[1] = make([]interface{}, 7)
-		testValues[0][0] = "2017-11-08T06:14:44.843219756Z"
-		testValues[0][1] = "6f4b63dde673"
-		testValues[0][2] = "update"
-		testValues[0][5] = "10.20.0.1"
-		testValues[0][6] = `&{[@sys:image=gcr.io/google_containers/pause-amd64:3.0 @sys:name=/k8s_POD_aporeto-collector-sp9v9_kube-system_1b326fb4-c44c-11e7-bcd7-42010a8001e2_0 @usr:annotation.kubernetes.io/created-by={"kind":"SerializedReference","apiVersion":"v1","reference":{"kind":"ReplicaSet","namespace":"kube-system","name":"aporeto-collector","uid":"1b3135f2-c44c-11e7-bcd7-42010a8001e2","apiVersion":"extensions","resourceVersion":"1220761"}}
+		testValues[0][ContainerTimestampIndex] = "2017-11-08T06:14:44.843219756Z"
+		testValues[0][ContainerContextIDIndex] = "6f4b63dde673"
+		testValues[0][ContainerEventIndex] = "update"
+		testValues[0][ContainerIPAddressIndex] = "10.20.0.1"
+		testValues[0][ContainerTagsIndex] = `&{[@sys:image=gcr.io/google_containers/pause-amd64:3.0 @sys:name=/k8s_POD_aporeto-collector-sp9v9_kube-system_1b326fb4-c44c-11e7-bcd7-42010a8001e2_0 @usr:annotation.kubernetes.io/created-by={"kind":"SerializedReference","apiVersion":"v1","reference":{"kind":"ReplicaSet","namespace":"kube-system","name":"aporeto-collector","uid":"1b3135f2-c44c-11e7-bcd7-42010a8001e2","apiVersion":"extensions","resourceVersion":"1220761"}}
  @usr:io.kubernetes.docker.type=podsandbox @usr:io.kubernetes.pod.name=aporeto-collector-sp9v9 @usr:io.kubernetes.pod.uid=1b326fb4-c44c-11e7-bcd7-42010a8001e2 @usr:annotation.kubernetes.io/config.seen=2017-11-08T06:14:41.101573506Z @usr:annotation.kubernetes.io/config.source=api @usr:app=aporeto-collector @usr:io.kubernetes.container.name=POD @usr:io.kubernetes.pod.namespace=kube-system]}]`
-		testValues[1][0] = "2017-11-08T06:14:44.843219756Z"
-		testValues[1][1] = "14138259f129"
-		testValues[1][2] = "update"
-		testValues[1][5] = "10.20.2.59"
-		testValues[1][6] = `&{[@sys:image=gcr.io/google_containers/pause-amd64:3.0 @sys:name=/k8s_POD_aporeto-influxdb-j5hm6_kube-system_123de570-c44c-11e7-bcd7-42010a8001e2_0 @usr:annotation.kubernetes.io/config.seen=2017-11-08T06:14:26.074574104Z @usr:annotation.kubernetes.io/config.source=api @usr:io.kubernetes.container.name=POD @usr:io.kubernetes.pod.name=aporeto-influxdb-j5hm6 @usr:io.kubernetes.pod.uid=123de570-c44c-11e7-bcd7-42010a8001e2 @usr:annotation.kubernetes.io/created-by={"kind":"SerializedReference","apiVersion":"v1","reference":{"kind":"ReplicaSet","namespace":"kube-system","name":"aporeto-influxdb","uid":"123d2106-c44c-11e7-bcd7-42010a8001e2","apiVersion":"extensions","resourceVersion":"1220731"}}
+		testValues[1][ContainerTimestampIndex] = "2017-11-08T06:14:44.843219756Z"
+		testValues[1][ContainerContextIDIndex] = "14138259f129"
+		testValues[1][ContainerEventIndex] = "update"
+		testValues[1][ContainerIPAddressIndex] = "10.20.2.59"
+		testValues[1][ContainerTagsIndex] = `&{[@sys:image=gcr.io/google_containers/pause-amd64:3.0 @sys:name=/k8s_POD_aporeto-influxdb-j5hm6_kube-system_123de570-c44c-11e7-bcd7-42010a8001e2_0 @usr:annotation.kubernetes.io/config.seen=2017-11-08T06:14:26.074574104Z @usr:annotation.kubernetes.io/config.source=api @usr:io.kubernetes.container.name=POD @usr:io.kubernetes.pod.name=aporeto-influxdb-j5hm6 @usr:io.kubernetes.pod.uid=123de570-c44c-11e7-bcd7-42010a8001e2 @usr:annotation.kubernetes.io/created-by={"kind":"SerializedReference","apiVersion":"v1","reference":{"kind":"ReplicaSet","namespace":"kube-system","name":"aporeto-influxdb","uid":"123d2106-c44c-11e7-bcd7-42010a8001e2","apiVersion":"extensions","resourceVersion":"1220731"}}
  @usr:app=aporeto-influxdb @usr:io.kubernetes.docker.type=podsandbox @usr:io.kubernetes.pod.namespace=kube-system]}]]`
 		testRow.Values = testValues
 	} else if eventType == FlowEvent {
 		testRow.Name = FlowEvent
 		testValues := make([][]interface{}, 1)
 		testValues[0] = make([]interface{}, 17)
-		testValues[0][0] = "2017-11-08T06:14:46.314517734Z"
-		testValues[0][12] = "6f4b63dde673"
-		testValues[0][13] = "10.20.0.1"
-		testValues[0][2] = "14138259f129"
-		testValues[0][5] = "10.20.2.59"
-		testValues[0][1] = "accept"
-		testValues[0][16] = `&{[app=aporeto-influxdb @namespace=kube-system AporetoContextID=14138259f129]}]`
+		testValues[0][FlowTimestampIndex] = "2017-11-08T06:14:46.314517734Z"
+		testValues[0][FlowSourceIDIndex] = "6f4b63dde673"
+		testValues[0][FlowSourceIPIndex] = "10.20.0.1"
+		testValues[0][FlowDestinationIDIndex] = "14138259f129"
+		testValues[0][FlowDestinationIPIndex] = "10.20.2.59"
+		testValues[0][FlowActionIndex] = "accept"
+		testValues[0][FlowTagsIndex] = `&{[app=aporeto-influxdb @namespace=kube-system AporetoContextID=14138259f129]}]`
 		testRow.Values = testValues
 	}
 
@@ -142,7 +142,7 @@ func TestGetContainerEvents(t *testing.T) {
 			res, err := newTestGraph.getContainerEvents()
 			Convey("I should get an error", func() {
 				So(res, ShouldBeNil)
-				So(err, ShouldResemble, fmt.Errorf("Error: Executing Query Error: Resource Unavailabe Error"))
+				So(err, ShouldResemble, fmt.Errorf("Executing Query Resource Unavailabe Error"))
 			})
 		})
 	})
@@ -172,7 +172,7 @@ func TestGetFlowEvents(t *testing.T) {
 			res, err := newTestGraph.getFlowEvents(mockDataAdder, "testDB")
 			Convey("I should get an error", func() {
 				So(res, ShouldBeNil)
-				So(err, ShouldResemble, fmt.Errorf("Error: Executing Query Error: Resource Unavailabe Error"))
+				So(err, ShouldResemble, fmt.Errorf("Executing Query Resource Unavailabe Error"))
 			})
 		})
 	})
@@ -246,7 +246,7 @@ func TestTransform(t *testing.T) {
 			res, err := newTestGraph.transform(&testContainerResponse)
 			Convey("I should get error", func() {
 				So(res, ShouldBeNil)
-				So(err, ShouldResemble, fmt.Errorf("Error: Generating Link Error: Retrieving Flow Events Error: Executing Query Error: Resource Unavailabe Error"))
+				So(err, ShouldResemble, fmt.Errorf("Generating Link Retrieving Flow Events Executing Query Resource Unavailabe Error"))
 			})
 		})
 	})

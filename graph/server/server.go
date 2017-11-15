@@ -33,12 +33,12 @@ func (g *Graph) GetData(w http.ResponseWriter, r *http.Request) {
 
 	starttime, err := time.Parse(time.RFC3339, r.URL.Query().Get("starttime")+"Z")
 	if err != nil {
-		zap.L().Warn("Error: Parsing Time ", zap.Error(err))
+		zap.L().Warn("Parsing Time ", zap.Error(err))
 	}
 
 	endtime, err := time.Parse(time.RFC3339, r.URL.Query().Get("endtime")+"Z")
 	if err != nil {
-		zap.L().Warn("Error: Parsing Time ", zap.Error(err))
+		zap.L().Warn("Parsing Time ", zap.Error(err))
 	}
 
 	namespace := r.URL.Query().Get("namespace")
@@ -103,11 +103,11 @@ func (g *Graph) Start(interval int) {
 		for range time.Tick(time.Second * time.Duration(interval)) {
 			res, err := g.getContainerEvents()
 			if err != nil {
-				zap.L().Error("Error: Retrieving container events from DB", zap.Error(err))
+				zap.L().Error("Retrieving container events from DB", zap.Error(err))
 			}
 			g.jsonData, err = g.transform(res)
 			if err != nil {
-				zap.L().Error("Error: Transforming to nodes and links", zap.Error(err))
+				zap.L().Error("Transforming to nodes and links", zap.Error(err))
 			}
 		}
 	}()
@@ -155,7 +155,7 @@ func (g *Graph) getContainerEvents() (*client.Response, error) {
 	zap.L().Info("Retrieving ContainerEvents from DB")
 	res, err := g.executeQuery(ContainerEventsQuery)
 	if err != nil {
-		return nil, fmt.Errorf("Error: Executing Query %s", err)
+		return nil, fmt.Errorf("Executing Query %s", err)
 	}
 
 	return res, nil
@@ -165,7 +165,7 @@ func (g *Graph) getFlowEvents(httpClient influxdb.DataAdder, dbname string) (*cl
 	zap.L().Info("Retrieving FlowEvents from DB")
 	res, err := g.executeQuery(FlowEventsQuery)
 	if err != nil {
-		return nil, fmt.Errorf("Error: Executing Query %s", err)
+		return nil, fmt.Errorf("Executing Query %s", err)
 	}
 
 	return res, nil
@@ -175,7 +175,7 @@ func (g *Graph) executeQuery(query string) (*client.Response, error) {
 
 	res, err := g.httpClient.ExecuteQuery(query, g.dbname)
 	if err != nil {
-		return nil, fmt.Errorf("Error: Resource Unavailabe %s", err)
+		return nil, fmt.Errorf("Resource Unavailabe %s", err)
 	}
 
 	return res, nil
@@ -194,42 +194,30 @@ func (g *Graph) transform(res *client.Response) (*GraphData, error) {
 		if res.Results[0].Series[0].Name == ContainerEvent {
 			for _, containerEvent := range res.Results[0].Series[0].Values {
 				var node Node
-				var contextID, ipAddress, timestamp, tags, event string
-				if value := containerEvent[0]; value != nil {
-					timestamp = value.(string)
+				containerAttr := extractContainerEventAttributes(containerEvent)
+				if containerAttr == nil {
+					return nil, fmt.Errorf("Empty Container Attributes ")
 				}
-				if value := containerEvent[1]; value != nil {
-					contextID = value.(string)
-				}
-				if value := containerEvent[2]; value != nil {
-					event = value.(string)
-				}
-				if value := containerEvent[5]; value != nil {
-					ipAddress = value.(string)
-				}
-				if value := containerEvent[6]; value != nil {
-					tags = value.(string)
-				}
-				if event == ContainerUpdate {
+				if containerAttr.event == ContainerUpdate {
 					for _, containerEvent := range startEvents {
-						if event == containerEvent {
-							ipIDHash := getHash(contextID, ipAddress)
+						if containerAttr.event == containerEvent {
+							ipIDHash := getHash(containerAttr.contextID, containerAttr.ipAddress)
 							if _, ok := g.nodeMap[ipIDHash]; !ok {
-								node.ContextID = contextID
-								parsedTime, err := time.Parse(time.RFC3339, timestamp)
+								node.ContextID = containerAttr.contextID
+								parsedTime, err := time.Parse(time.RFC3339, containerAttr.timestamp)
 								if err != nil {
-									return nil, fmt.Errorf("Error: Parsing Time %s", err)
+									return nil, fmt.Errorf("Parsing Time %s", err)
 								}
 								node.Time = parsedTime
-								node.IPAddress = ipAddress
-								node.Namespace = g.parseTag(tags, PODNamespaceFromContainerTags)
-								node.PodName = g.parseTag(tags, PODNameFromContainerTags)
+								node.IPAddress = containerAttr.ipAddress
+								node.Namespace = g.parseTag(containerAttr.tags, PODNamespaceFromContainerTags)
+								node.PodName = g.parseTag(containerAttr.tags, PODNameFromContainerTags)
 								g.nodeMap[ipIDHash] = &node
 							}
 						}
 					}
-				} else if event == ContainerDelete {
-					go g.deleteContainerEvents(contextID)
+				} else if containerAttr.event == ContainerDelete {
+					go g.deleteContainerEvents(containerAttr.contextID)
 				}
 			}
 		}
@@ -237,7 +225,7 @@ func (g *Graph) transform(res *client.Response) (*GraphData, error) {
 
 	err := g.generateLinks()
 	if err != nil {
-		return nil, fmt.Errorf("Error: Generating Link %s", err)
+		return nil, fmt.Errorf("Generating Link %s", err)
 	}
 
 	g.populateNodesAndLinks()
@@ -254,38 +242,19 @@ func (g *Graph) generateLinks() error {
 
 	res, err := g.getFlowEvents(g.httpClient, g.dbname)
 	if err != nil {
-		return fmt.Errorf("Error: Retrieving Flow Events %s", err)
+		return fmt.Errorf("Retrieving Flow Events %s", err)
 	}
 
 	if len(res.Results[0].Series) > 0 {
 		if res.Results[0].Series[0].Name == FlowEvent {
 			for _, flowEvent := range res.Results[0].Series[0].Values {
 				var link Link
-				var srcID, srcIP, dstID, dstIP, action, tags, timestamp string
-				if value := flowEvent[0]; value != nil {
-					timestamp = value.(string)
+				flowAttr := extractFlowEventAttributes(flowEvent)
+				if flowAttr == nil {
+					return fmt.Errorf("Empty Flow Attributes ")
 				}
-				if value := flowEvent[12]; value != nil {
-					srcID = value.(string)
-				}
-				if value := flowEvent[13]; value != nil {
-					srcIP = value.(string)
-				}
-				if value := flowEvent[2]; value != nil {
-					dstID = value.(string)
-				}
-				if value := flowEvent[5]; value != nil {
-					dstIP = value.(string)
-				}
-				if value := flowEvent[1]; value != nil {
-					action = value.(string)
-				}
-				if value := flowEvent[16]; value != nil {
-					tags = value.(string)
-				}
-
-				srcHash := getHash(srcID, srcIP)
-				dstHash := getHash(dstID, dstIP)
+				srcHash := getHash(flowAttr.srcID, flowAttr.srcIP)
+				dstHash := getHash(flowAttr.dstID, flowAttr.dstIP)
 				key := srcHash + dstHash
 				if _, ok := g.linkMap[key]; !ok {
 					if srcNode, ok := g.nodeMap[srcHash]; ok {
@@ -296,17 +265,17 @@ func (g *Graph) generateLinks() error {
 					}
 
 					if link.Source != "" && link.Target != "" {
-						link.Action = action
-						link.Namespace = g.parseTag(tags, PODNamespaceFromFlowTags)
-						parsedTime, err := time.Parse(time.RFC3339, timestamp)
+						link.Action = flowAttr.action
+						link.Namespace = g.parseTag(flowAttr.tags, PODNamespaceFromFlowTags)
+						parsedTime, err := time.Parse(time.RFC3339, flowAttr.timestamp)
 						if err != nil {
-							return fmt.Errorf("Error: Parsing Time %s", err)
+							return fmt.Errorf("Parsing Time %s", err)
 						}
 						link.Time = parsedTime
 						g.linkMap[key] = &link
 					}
 				} else {
-					if g.linkMap[key].Action != action {
+					if g.linkMap[key].Action != flowAttr.action {
 						g.linkMap[key].Action = FlowNowRejected
 					}
 				}
