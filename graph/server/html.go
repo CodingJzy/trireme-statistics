@@ -92,23 +92,19 @@ const js = `
     <script src="//d3js.org/d3.v3.min.js"></script>
     <script>
         var width = 1000,
-            height = 1000;
-
+            height = 1000,
+            radius = 8;
         var svg = d3.select("body").append("svg")
-
-        .attr("viewBox", "0 0 " + width + " " + height)
+            .attr("viewBox", "0 0 " + width + " " + height)
             .attr("preserveAspectRatio", "xMidYMid meet")
             .attr("pointer-events", "all")
-
         var force = d3.layout.force()
             .gravity(0.05)
-            .distance(180)
-            .charge(-120)
+            .distance(200)
+            .charge(-250)
             .size([850, 500]);
-
         d3.json({{.Address}}, function(error, json) {
             if (error) throw error;
-
             var edges = [];
             json.links.forEach(function(e) {
                 var sourceNode = json.nodes.filter(function(n) {
@@ -127,13 +123,12 @@ const js = `
                     });
                 }
             });
-
             force
                 .nodes(json.nodes)
                 .links(edges)
+                .on("tick", tick)
                 .start();
-
-            svg.append("svg:defs").selectAll("marker")
+            var marker = svg.append("svg:defs").selectAll("marker")
                 .data(["accept", "reject", "nowrejected"])
                 .enter().append("svg:marker")
                 .attr("id", String)
@@ -145,7 +140,6 @@ const js = `
                 .attr("orient", "auto")
                 .append("svg:path")
                 .attr("d", "M0,-5L10,0L0,5");
-
             var link = svg.selectAll(".link")
                 .data(edges)
                 .enter().append("polyline")
@@ -155,7 +149,6 @@ const js = `
                 .attr("marker-mid", function(d) {
                     return "url(#" + d.action + ")";
                 });
-
             var node = svg.selectAll(".node")
                 .data(json.nodes)
                 .enter().append("g")
@@ -163,15 +156,12 @@ const js = `
                 .on("mouseover", mouseover)
                 .on("mouseout", mouseout)
                 .call(force.drag);
-
             node.append("circle")
-                .attr("r", 8);
-
+                .attr("r", radius);
             node.append("title")
                 .text(function(d) {
                     return d.id;
                 });
-
             node.append("text")
                 .attr("dx", 10)
                 .attr("dy", ".35em")
@@ -179,17 +169,71 @@ const js = `
                     return d.name
                 });
 
-            force.on("tick", function() {
-                link.attr("points", function(d) {
-                    return d.source.x + "," + d.source.y + " " +
-                        (d.source.x + d.target.x) / 2 + "," + (d.source.y + d.target.y) / 2 + " " +
-                        d.target.x + "," + d.target.y;
-                });
+            var moveItems = (function() {
+                var todoNode = 0;
+                var todoLink = 0;
+                var MAX_NODES = 300;
+                var MAX_LINKS = MAX_NODES / 2;
 
-                node.attr("transform", function(d) {
-                    return "translate(" + d.x + "," + d.y + ")";
-                });
-            });
+                var restart = false;
+
+                function moveSomeNodes() {
+                    var n;
+                    var goal = Math.min(todoNode + MAX_NODES, node[0].length);
+
+                    for (var i = todoNode; i < goal; i++) {
+                        n = node[0][i];
+                        n.setAttribute("transform", "translate(" + Math.max(radius, Math.min(width - radius, n.__data__.x)) + "," +
+                            Math.max(radius, Math.min(height - radius, n.__data__.y)) + ")");
+                    }
+
+                    todoNode = goal;
+                    requestAnimationFrame(moveSome)
+                }
+
+                function moveSomeLinks() {
+                    var l;
+                    var goal = Math.min(todoLink + MAX_LINKS, link[0].length);
+
+                    for (var i = todoLink; i < goal; i++) {
+                        l = link[0][i];
+                        l.setAttribute("points", l.__data__.source.x + "," + l.__data__.source.y + " " +
+                            (l.__data__.source.x + l.__data__.target.x) / 2 + "," + (l.__data__.source.y + l.__data__.target.y) / 2 + " " +
+                            l.__data__.target.x + "," + l.__data__.target.y);
+                    }
+
+                    todoLink = goal;
+                    requestAnimationFrame(moveSome)
+                }
+
+                function moveSome() {
+                    if (todoNode < node[0].length)
+                        moveSomeNodes()
+                    else {
+                        if (todoLink < link[0].length)
+                            moveSomeLinks()
+                        else {
+                            if (restart) {
+                                restart = false;
+                                todoNode = 0;
+                                todoLink = 0;
+                                requestAnimationFrame(moveSome);
+                            }
+                        }
+                    }
+                }
+
+                return function moveItems() {
+                    if (!restart) {
+                        restart = true;
+                        requestAnimationFrame(moveSome);
+                    }
+                };
+            })();
+
+            function tick() {
+                moveItems();
+            }
 
             function mouseover() {
                 d3.select(this).select("circle").transition()
@@ -200,7 +244,7 @@ const js = `
             function mouseout() {
                 d3.select(this).select("circle").transition()
                     .duration(750)
-                    .attr("r", 8);
+                    .attr("r", radius);
             }
         });
     </script>
