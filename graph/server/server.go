@@ -20,8 +20,10 @@ func NewGraph(httpClient *influxdb.Influxdb, dbname string) *Graph {
 	return &Graph{
 		httpClient: httpClient,
 		dbname:     dbname,
-		nodesChan:  make(chan []Nodes),
-		linksChan:  make(chan []Links),
+		nodesChan:  make(chan []Node),
+		linksChan:  make(chan []Link),
+		nodeMap:    make(map[string]*Node),
+		linkMap:    make(map[string]*Link),
 	}
 }
 
@@ -58,7 +60,7 @@ func (g *Graph) GetData(w http.ResponseWriter, r *http.Request) {
 
 // FindNodesBetweenGivenTimeAndOrNamespace will aggregate nodes within the specified time, namespaces or both
 func (g *Graph) FindNodesBetweenGivenTimeAndOrNamespace(starttime time.Time, endtime time.Time, namespace string) {
-	var nodes []Nodes
+	var nodes []Node
 
 	for _, node := range g.jsonData.Nodes {
 		switch {
@@ -76,7 +78,7 @@ func (g *Graph) FindNodesBetweenGivenTimeAndOrNamespace(starttime time.Time, end
 
 // FindLinksBetweenGivenTimeAndOrNamespace will aggregate links within the specified time, namespaces or both
 func (g *Graph) FindLinksBetweenGivenTimeAndOrNamespace(starttime time.Time, endtime time.Time, namespace string) {
-	var links []Links
+	var links []Link
 
 	for _, link := range g.jsonData.Links {
 		switch {
@@ -179,75 +181,71 @@ func (g *Graph) executeQuery(query string) (*client.Response, error) {
 	return res, nil
 }
 
-func (g *Graph) deleteContainerEvents(contextIDs []string) []Nodes {
-
-	for _, node := range g.nodes {
-		for _, contextID := range contextIDs {
-			if node.ContextID == contextID {
-				node.Delete = true
-			}
-		}
-	}
-
-	for k := len(g.nodes) - 1; k >= 0; k-- {
-		if g.nodes[k].Delete {
-			g.nodes = append(g.nodes[:k], g.nodes[k+1:]...)
-		}
-	}
-
-	return g.nodes
-}
-
 // transform will convert the JSON response from influxdb to nodes and links to generate graph
-// nodes struct will have nodeid, nodeipaddress and nodename
-// links struct will have source, target and action
-// the nodes are extracted from the influx data and stored in the array of structure
-// then later this array is sent to the link generator which process the links between the nodes
-// the link generator basically generates the link by comparing the nodeip with the flows src and dst ip's
+// the nodes are retrieved from influxdb and stored in map of nodes
+// then later this map is used to generate links and links are stored in map of links
+// the link generator basically generates the link by comparing the ipidhash with the flows hash
 func (g *Graph) transform(res *client.Response) (*GraphData, error) {
-	zap.L().Info("Transforming to Nodes and Links")
-	var node Nodes
-	var contextID []string
-	g.links = nil
+	zap.L().Info("Transforming to Node and Link")
+
 	var startEvents = []string{ContainerUpdate}
 
 	if len(res.Results[0].Series) > 0 {
 		if res.Results[0].Series[0].Name == ContainerEvent {
 			for _, containerEvent := range res.Results[0].Series[0].Values {
-				if containerEvent[2] == ContainerUpdate {
-					for k := range startEvents {
-						if containerEvent[2].(string) == startEvents[k] {
-							time, err := time.Parse(time.RFC3339, containerEvent[0].(string))
-							if err != nil {
-								return nil, fmt.Errorf("Error: Parsing Time %s", err)
+				var node Node
+				var contextID, ipAddress, timestamp, tags, event string
+				if value := containerEvent[0]; value != nil {
+					timestamp = value.(string)
+				}
+				if value := containerEvent[1]; value != nil {
+					contextID = value.(string)
+				}
+				if value := containerEvent[2]; value != nil {
+					event = value.(string)
+				}
+				if value := containerEvent[5]; value != nil {
+					ipAddress = value.(string)
+				}
+				if value := containerEvent[6]; value != nil {
+					tags = value.(string)
+				}
+				if event == ContainerUpdate {
+					for _, containerEvent := range startEvents {
+						if event == containerEvent {
+							ipIDHash := getHash(contextID, ipAddress)
+							if _, ok := g.nodeMap[ipIDHash]; !ok {
+								node.ContextID = contextID
+								parsedTime, err := time.Parse(time.RFC3339, timestamp)
+								if err != nil {
+									return nil, fmt.Errorf("Error: Parsing Time %s", err)
+								}
+								node.Time = parsedTime
+								node.IPAddress = ipAddress
+								node.Namespace = g.parseTag(tags, PODNamespaceFromContainerTags)
+								node.PodName = g.parseTag(tags, PODNameFromContainerTags)
+								g.nodeMap[ipIDHash] = &node
 							}
-							node.Time = time
-							node.ContextID = containerEvent[1].(string)
-							node.IPAddress = containerEvent[5].(string)
-							node.IPIDHash = getHash(containerEvent[1].(string), containerEvent[5].(string))
-							if containerEvent[6].(string) != "" {
-								node.Namespace = g.parseTag(containerEvent[6].(string), PODNamespaceFromContainerTags)
-								node.PodName = g.parseTag(containerEvent[6].(string), PODNameFromContainerTags)
-							}
-							g.removeDuplicateNodes(node)
 						}
 					}
-				} else if containerEvent[2].(string) == ContainerDelete {
-					contextID = append(contextID, containerEvent[1].(string))
+				} else if event == ContainerDelete {
+					go g.deleteContainerEvents(contextID)
 				}
-			}
-			if len(contextID) > 0 {
-				g.deleteContainerEvents(contextID)
 			}
 		}
 	}
 
 	err := g.generateLinks()
 	if err != nil {
-		return nil, fmt.Errorf("Error: Generating Links %s", err)
+		return nil, fmt.Errorf("Error: Generating Link %s", err)
 	}
 
+	g.populateNodesAndLinks()
+
 	jsonData := GraphData{Nodes: g.nodes, Links: g.links}
+
+	// Clears the structures and maps
+	go g.clearDataStores()
 
 	return &jsonData, nil
 }
@@ -259,98 +257,96 @@ func (g *Graph) generateLinks() error {
 		return fmt.Errorf("Error: Retrieving Flow Events %s", err)
 	}
 
-	var link Links
-	var isSrcPod, isDstPod bool
-
 	if len(res.Results[0].Series) > 0 {
 		if res.Results[0].Series[0].Name == FlowEvent {
 			for _, flowEvent := range res.Results[0].Series[0].Values {
-				for _, node := range g.nodes {
-					if node.IPIDHash == getHash(flowEvent[2].(string), flowEvent[5].(string)) {
-						link.Target = node.ContextID
-						isDstPod = true
-					} else if node.IPIDHash == getHash(flowEvent[12].(string), flowEvent[13].(string)) {
-						link.Source = node.ContextID
-						isSrcPod = true
+				var link Link
+				var srcID, srcIP, dstID, dstIP, action, tags, timestamp string
+				if value := flowEvent[0]; value != nil {
+					timestamp = value.(string)
+				}
+				if value := flowEvent[12]; value != nil {
+					srcID = value.(string)
+				}
+				if value := flowEvent[13]; value != nil {
+					srcIP = value.(string)
+				}
+				if value := flowEvent[2]; value != nil {
+					dstID = value.(string)
+				}
+				if value := flowEvent[5]; value != nil {
+					dstIP = value.(string)
+				}
+				if value := flowEvent[1]; value != nil {
+					action = value.(string)
+				}
+				if value := flowEvent[16]; value != nil {
+					tags = value.(string)
+				}
+
+				srcHash := getHash(srcID, srcIP)
+				dstHash := getHash(dstID, dstIP)
+				key := srcHash + dstHash
+				if _, ok := g.linkMap[key]; !ok {
+					if srcNode, ok := g.nodeMap[srcHash]; ok {
+						link.Source = srcNode.ContextID
+					}
+					if dstNode, ok := g.nodeMap[dstHash]; ok {
+						link.Target = dstNode.ContextID
+					}
+
+					if link.Source != "" && link.Target != "" {
+						link.Action = action
+						link.Namespace = g.parseTag(tags, PODNamespaceFromFlowTags)
+						parsedTime, err := time.Parse(time.RFC3339, timestamp)
+						if err != nil {
+							return fmt.Errorf("Error: Parsing Time %s", err)
+						}
+						link.Time = parsedTime
+						g.linkMap[key] = &link
+					}
+				} else {
+					if g.linkMap[key].Action != action {
+						g.linkMap[key].Action = FlowNowRejected
 					}
 				}
-				if isSrcPod && isDstPod && link.Source != "" && link.Target != "" {
-					link.Action = flowEvent[1].(string)
-					link.Namespace = g.parseTag(flowEvent[16].(string), PODNamespaceFromFlowTags)
-					time, err := time.Parse(time.RFC3339, flowEvent[0].(string))
-					if err != nil {
-						return fmt.Errorf("Error: Parsing Time %s", err)
-					}
-					link.Time = time
-					g.removeDuplicateLinks(link)
-					g.checkIfReject(link)
-					isSrcPod = false
-					isDstPod = false
-				}
-				link.Source = ""
-				link.Target = ""
 			}
 		}
-	}
-
-	if len(g.links) == 0 {
-		g.links = append(g.links, DefaultLink())
 	}
 
 	return nil
 }
 
-func (g *Graph) removeDuplicateNodes(node Nodes) []Nodes {
-	var isNodePresent bool
+func (g *Graph) deleteContainerEvents(contextID string) {
 
-	for l := range g.nodes {
-		if g.nodes[l].IPIDHash == node.IPIDHash {
-			isNodePresent = true
+	for _, node := range g.nodeMap {
+		if node.ContextID == contextID {
+			ipIDHash := getHash(contextID, node.IPAddress)
+			delete(g.nodeMap, ipIDHash)
 		}
 	}
-	if !isNodePresent {
-		g.nodes = append(g.nodes, node)
-	}
-
-	return g.nodes
+	return
 }
 
-func (g *Graph) removeDuplicateLinks(targetLink Links) []Links {
-	var isLinkPresent bool
+func (g *Graph) populateNodesAndLinks() {
 
-	for _, link := range g.links {
-		if link.Source == targetLink.Source && link.Target == targetLink.Target && link.Action == targetLink.Action {
-			isLinkPresent = true
-		}
+	for _, node := range g.nodeMap {
+		g.nodes = append(g.nodes, *node)
 	}
 
-	if !isLinkPresent {
-		g.links = append(g.links, targetLink)
+	for _, link := range g.linkMap {
+		g.links = append(g.links, *link)
 	}
-
-	return g.links
 }
 
-func (g *Graph) checkIfReject(targetLink Links) []Links {
-	var rejectedLink Links
+func (g *Graph) clearDataStores() {
 
-	for _, link := range g.links {
-		if link.Source == targetLink.Source && link.Target == targetLink.Target && link.Action != targetLink.Action {
-			if link.Action == FlowAccept && targetLink.Action == FlowReject {
-				rejectedLink.Namespace = link.Namespace
-				rejectedLink.Time = link.Time
-				rejectedLink.Source = link.Source
-				rejectedLink.Target = link.Target
-				rejectedLink.Action = FlowNowRejected
-			}
-		}
+	g.links = nil
+	g.nodes = nil
+	for k := range g.linkMap {
+		delete(g.linkMap, k)
 	}
-
-	if rejectedLink.Action != "" {
-		g.links = g.removeDuplicateLinks(rejectedLink)
-	}
-
-	return g.links
+	return
 }
 
 func (g *Graph) parseTag(tag string, parseType string) string {
