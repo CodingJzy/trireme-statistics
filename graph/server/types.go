@@ -33,7 +33,7 @@ type Link struct {
 // Graph which holds the fields for graph creation
 type Graph struct {
 	jsonData   *GraphData
-	httpClient *influxdb.Influxdb
+	httpClient influxdb.DataAdder
 	dbname     string
 	nodes      []Node
 	links      []Link
@@ -42,4 +42,24 @@ type Graph struct {
 	nodeMap    map[string]*Node
 	linkMap    map[string]*Link
 	tagValue   string
+}
+
+// ContainerEvents struct to hold container event attributes
+type ContainerEvents struct {
+	contextID string
+	ipAddress string
+	timestamp string
+	tags      string
+	event     string
+}
+
+// FlowEvents struct to hold flow event attributes
+type FlowEvents struct {
+	timestamp string
+	srcID     string
+	srcIP     string
+	dstID     string
+	dstIP     string
+	action    string
+	tags      string
 }

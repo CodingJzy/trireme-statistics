@@ -23,6 +23,7 @@ type Influxdb struct {
 type DataAdder interface {
 	CreateDB(string) error
 	AddData(tags map[string]string, fields map[string]interface{}) error
+	ExecuteQuery(query string, dbname string) (*client.Response, error)
 }
 
 // NewDBConnection is used to create a new client and return influxdb handle

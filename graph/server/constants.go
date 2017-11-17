@@ -49,3 +49,33 @@ const (
 	// PODNamespaceFromFlowTags is the tag used to retrieve flow associated to a particular pod namespace from tags in FlowEvents
 	PODNamespaceFromFlowTags = "@namespace"
 )
+
+const (
+	// ContainerContextIDIndex from influxdb response
+	ContainerContextIDIndex = 1
+	// ContainerIPAddressIndex from influxdb response
+	ContainerIPAddressIndex = 5
+	// ContainerTimestampIndex from influxdb response
+	ContainerTimestampIndex = 0
+	// ContainerTagsIndex from influxdb response
+	ContainerTagsIndex = 6
+	// ContainerEventIndex from influxdb response
+	ContainerEventIndex = 2
+)
+
+const (
+	// FlowTimestampIndex from influxdb response
+	FlowTimestampIndex = 0
+	// FlowSourceIDIndex from influxdb response
+	FlowSourceIDIndex = 12
+	// FlowSourceIPIndex from influxdb response
+	FlowSourceIPIndex = 13
+	// FlowDestinationIDIndex from influxdb response
+	FlowDestinationIDIndex = 2
+	// FlowDestinationIPIndex from influxdb response
+	FlowDestinationIPIndex = 5
+	// FlowActionIndex from influxdb response
+	FlowActionIndex = 1
+	// FlowTagsIndex from influxdb response
+	FlowTagsIndex = 16
+)
