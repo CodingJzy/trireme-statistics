@@ -7,7 +7,7 @@ import (
 )
 
 // NewUISession is used to create a new session and return grafana handle
-func NewUISession(user string, pass string, addr string) (GrafanaManipulator, error) {
+func NewUISession(user string, pass string, addr string) (Grafanamanipulator, error) {
 
 	session, err := createSession(user, pass, addr)
 	if err != nil {

@@ -4,8 +4,8 @@ import (
 	"github.com/aporeto-inc/grafanaclient"
 )
 
-// GrafanaManipulator is the interface which has all methods to interact with the grafana ui
-type GrafanaManipulator interface {
+// Grafanamanipulator is the interface which has all methods to interact with the grafana ui
+type Grafanamanipulator interface {
 	CreateDataSource(name string, dbname string, dbuname string, dbpass string, dburl string, access string) error
 	CreateDashboard(dbr string)
 	AddPanel(panel PanelType, title string, measurement string, fields []string) grafanaclient.Panel
