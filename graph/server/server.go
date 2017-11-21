@@ -188,6 +188,10 @@ func (g *Graph) executeQuery(query string) (*client.Response, error) {
 func (g *Graph) transform(res *client.Response) (*GraphData, error) {
 	zap.L().Info("Transforming to Node and Link")
 
+	if res == nil {
+		return nil, fmt.Errorf("No Response from InfluxDB")
+	}
+
 	var startEvents = []string{ContainerUpdate}
 
 	if len(res.Results[0].Series) > 0 {
