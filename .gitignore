@@ -4,6 +4,7 @@ graph/bindata.go
 cmd/dataexploder/dataexploder
 grafana/docker/grafana
 glide.lock
+coverage.txt
 vendor
 cmd/grafana-init/grafana-init
 cmd/trireme-graph/trireme-statistics
