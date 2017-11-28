@@ -6,7 +6,7 @@ import (
 
 	"go.uber.org/zap"
 
-	tcollector "github.com/aporeto-inc/trireme/collector"
+	tcollector "github.com/aporeto-inc/trireme-lib/collector"
 	"github.com/influxdata/influxdb/client/v2"
 )
 
