@@ -130,14 +130,14 @@ func (d *Influxdb) AddData(tags map[string]string, fields map[string]interface{}
 		return fmt.Errorf("Couldn't add data, error creating batchpoint: %s", err)
 	}
 
-	if tags["EventName"] == "ContainerStartEvents" || tags["EventName"] == "ContainerStopEvents" {
-		pt, err := client.NewPoint("ContainerEvents", tags, fields, time.Now())
+	if tags[EventName] == EventTypeContainerStart || tags[EventName] == EventTypeContainerStop {
+		pt, err := client.NewPoint(EventTypeContainer, tags, fields, time.Now())
 		if err != nil {
 			return fmt.Errorf("Couldn't add ContainerEvent: %s", err)
 		}
 		bp.AddPoint(pt)
-	} else if tags["EventName"] == "FlowEvents" {
-		pt, err := client.NewPoint("FlowEvents", tags, fields, time.Now())
+	} else if tags[EventName] == EventTypeFlow {
+		pt, err := client.NewPoint(EventTypeFlow, tags, fields, time.Now())
 		if err != nil {
 			return fmt.Errorf("Couldn't add FlowEvent: %s", err)
 		}

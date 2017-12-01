@@ -7,6 +7,23 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	// EventName is the constant used to store the name of the event type
+	EventName = "EventName"
+
+	// EventTypeFlow is the constant used to store event of type flows
+	EventTypeFlow = "FlowEvents"
+
+	// EventTypeContainer is the constant used to store event of type container
+	EventTypeContainer = "ContainerEvents"
+
+	// EventTypeContainerStart is the constant used to store event of type container start
+	EventTypeContainerStart = "ContainerStartEvents"
+
+	// EventTypeContainerStop is the constant used to store event of type container stop
+	EventTypeContainerStop = "ContainerStopEvents"
+)
+
 // A worker manages the workload for the InfluxDB collector
 type worker struct {
 	events chan *workerEvent
@@ -80,12 +97,15 @@ func (w *worker) doCollectContainerEvent(record *collector.ContainerRecord) erro
 	var eventName string
 
 	switch record.Event {
-	case "start", "update", "create":
-		eventName = "ContainerStartEvents"
-	case "delete":
-		eventName = "ContainerStopEvents"
-	case "ignore":
+	case collector.ContainerStart, collector.ContainerUpdate, collector.ContainerCreate:
+		eventName = EventTypeContainerStart
+	case collector.ContainerDelete, collector.ContainerStop:
+		eventName = EventTypeContainerStop
+	case collector.ContainerIgnored:
 		// Used for non relevant container events.
+		return nil
+	case collector.ContainerFailed:
+		// TODO: handle ContainerFailed event type
 		return nil
 	default:
 		return fmt.Errorf("Unrecognized container event name %s ", record.Event)
@@ -105,7 +125,7 @@ func (w *worker) doCollectContainerEvent(record *collector.ContainerRecord) erro
 // CollectFlowEvent implements trireme collector interface
 func (w *worker) doCollectFlowEvent(record *collector.FlowRecord) error {
 	return w.db.AddData(map[string]string{
-		"EventName": "FlowEvents",
+		"EventName": EventTypeFlow,
 		"EventID":   record.ContextID,
 	}, map[string]interface{}{
 		"ContextID":       record.ContextID,

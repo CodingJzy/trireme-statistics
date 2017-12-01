@@ -2,7 +2,7 @@ package: github.com/aporeto-inc/trireme-statistics
 import:
 - package: github.com/aporeto-inc/grafanaclient
 - package: github.com/aporeto-inc/trireme-lib
-  version: 3.x.x
+  version: 2.x.x
   subpackages:
   - collector
   - policy
