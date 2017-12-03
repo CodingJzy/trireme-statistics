@@ -57,11 +57,12 @@ func NewDBConnection(user string, pass string, addr string, db string, insecureS
 
 func createHTTPClient(user string, pass string, addr string, InsecureSkipVerify bool) (client.Client, error) {
 
+	// TODO: Make the timeout configurable
 	httpClient, err := client.NewHTTPClient(client.HTTPConfig{
 		Addr:               addr,
 		Username:           user,
 		Password:           pass,
-		Timeout:            time.Minute,
+		Timeout:            20 * time.Second,
 		InsecureSkipVerify: InsecureSkipVerify,
 	})
 	if err != nil {
