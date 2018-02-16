@@ -8,3 +8,4 @@ coverage.txt
 vendor
 cmd/grafana-init/grafana-init
 cmd/trireme-graph/trireme-statistics
+Gopkg.lock

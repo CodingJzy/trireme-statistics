@@ -1,0 +1,45 @@
+##
+## Aporeto
+##
+[[constraint]]
+  name = "github.com/aporeto-inc/grafanaclient"
+  branch = "master"
+
+[[constraint]]
+  name = "github.com/aporeto-inc/trireme-lib"
+  version = "^6.0.0"
+
+##
+## 3rd Party
+##
+[[constraint]]
+  name = "github.com/golang/mock"
+  version = "1.0.0"
+
+[[constraint]]
+  name = "github.com/influxdata/influxdb"
+  version = "1.4.3"
+
+[[constraint]]
+  name = "github.com/rs/cors"
+  version = "1.2.0"
+
+[[constraint]]
+  name = "github.com/smartystreets/goconvey"
+  version = "1.6.3"
+
+[[constraint]]
+  name = "github.com/spf13/pflag"
+  version = "1.0.0"
+
+[[constraint]]
+  name = "github.com/spf13/viper"
+  version = "1.0.0"
+
+[[constraint]]
+  name = "go.uber.org/zap"
+  version = "1.7.1"
+
+[prune]
+  go-tests = true
+  unused-packages = true
