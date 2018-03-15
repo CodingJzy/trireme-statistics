@@ -170,3 +170,9 @@ func (d *Influxdb) CollectContainerEvent(record *tcollector.ContainerRecord) {
 		},
 	)
 }
+
+// CollectUserEvent implements trireme collector interface
+func (d *Influxdb) CollectUserEvent(record *tcollector.UserRecord) {
+	// TODO: Implement this event correctly
+	zap.L().Debug("CollectUserEvent not yet implemented in Trireme-Statistics")
+}
