@@ -3,7 +3,7 @@ package influxdb
 import (
 	"fmt"
 
-	collector "github.com/aporeto-inc/trireme-lib/collector"
+	collector "go.aporeto.io/trireme-lib/collector"
 	"go.uber.org/zap"
 )
 

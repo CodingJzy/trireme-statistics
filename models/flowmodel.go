@@ -1,6 +1,6 @@
 package models
 
-import "github.com/aporeto-inc/trireme-lib/collector"
+import "go.aporeto.io/trireme-lib/collector"
 
 // FlowModel ...
 type FlowModel struct {

@@ -8,10 +8,10 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/aporeto-inc/trireme-lib/collector"
-	"github.com/aporeto-inc/trireme-lib/policy"
 	"github.com/aporeto-inc/trireme-statistics/influxdb"
 	"github.com/aporeto-inc/trireme-statistics/models"
+	"go.aporeto.io/trireme-lib/collector"
+	"go.aporeto.io/trireme-lib/policy"
 )
 
 var wg sync.WaitGroup
