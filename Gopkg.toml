@@ -7,7 +7,7 @@
 
 [[constraint]]
   name = "github.com/aporeto-inc/trireme-lib"
-  version = "^8.0.0"
+  branch = "remote-bin"
 
 ##
 ## 3rd Party
