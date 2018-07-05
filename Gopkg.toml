@@ -7,7 +7,7 @@
 
 [[constraint]]
   name = "go.aporeto.io/trireme-lib"
-  version = "^8.0.0"
+  version = "^9.0.0"
 
 ##
 ## 3rd Party
