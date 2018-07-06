@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/aporeto-inc/trireme-statistics/influxdb"
-	"github.com/influxdata/influxdb/client/v2"
+	client "github.com/influxdata/influxdb/client/v2"
 )
 
 // NewGraph is the handler for graph generators

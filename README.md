@@ -21,7 +21,7 @@ Trireme-Graph can be launched on Kubernetes and will by default try to connect t
 
 # InfluxDB-Collector
 
-InfluxDB-Collector is an [Implementation](https://github.com/aporeto-inc/trireme-lib/blob/master/collector/interfaces.go) of the Trireme Collector interface:
+InfluxDB-Collector is an [Implementation](https://go.aporeto.io/trireme-lib/blob/master/collector/interfaces.go) of the Trireme Collector interface:
 
 ```
 // EventCollector is the interface for collecting events.

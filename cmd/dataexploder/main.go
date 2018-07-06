@@ -8,10 +8,10 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/aporeto-inc/trireme-lib/collector"
-	"github.com/aporeto-inc/trireme-lib/policy"
 	"github.com/aporeto-inc/trireme-statistics/influxdb"
 	"github.com/aporeto-inc/trireme-statistics/models"
+	"go.aporeto.io/trireme-lib/collector"
+	"go.aporeto.io/trireme-lib/policy"
 )
 
 var wg sync.WaitGroup
@@ -22,6 +22,7 @@ func explode() {
 	var contModel models.ContainerModel
 	var source collector.EndPoint
 	var destination collector.EndPoint
+
 	samplesize := 500
 	counter := 0
 	httpCli, _ := influxdb.NewDBConnection("aporeto", "aporeto", "http://influxdb:8086", "flowDB", false)
@@ -37,14 +38,14 @@ func explode() {
 		source.ID = "srcID"
 		source.IP = "192.168.0.1"
 		source.Port = 1234 + uint16(i)
-		source.Type = collector.Address
+		source.Type = collector.EnpointTypePU
 
 		flowModel.FlowRecord.Source = &source
 
 		destination.ID = "dstID"
 		destination.IP = "192.1688.2.2"
 		destination.Port = 880
-		destination.Type = collector.Address
+		destination.Type = collector.EnpointTypePU
 
 		flowModel.FlowRecord.Destination = &destination
 

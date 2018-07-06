@@ -7,7 +7,7 @@ import (
 
 	"github.com/aporeto-inc/trireme-statistics/influxdb/mock"
 	gomock "github.com/golang/mock/gomock"
-	"github.com/influxdata/influxdb/client/v2"
+	client "github.com/influxdata/influxdb/client/v2"
 	"github.com/influxdata/influxdb/models"
 	. "github.com/smartystreets/goconvey/convey"
 )
