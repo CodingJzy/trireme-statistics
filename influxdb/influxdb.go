@@ -7,8 +7,8 @@ import (
 
 	"go.uber.org/zap"
 
+	tcollector "git.cloud.top/DSec/trireme-lib/collector"
 	client "github.com/influxdata/influxdb/client/v2"
-	tcollector "go.aporeto.io/trireme-lib/collector"
 )
 
 //Influxdb inplements a DataAdder interface for influxDB
