@@ -1,6 +1,7 @@
 package influxdb
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -176,3 +177,15 @@ func (d *Influxdb) CollectUserEvent(record *tcollector.UserRecord) {
 	// TODO: Implement this event correctly
 	zap.L().Debug("CollectUserEvent not yet implemented in Trireme-Statistics")
 }
+
+// CollectTraceEvent collects iptables trace events
+func (d *Influxdb) CollectTraceEvent(records []string) {}
+
+// CollectPacketEvent collects packet events from the datapath
+func (d *Influxdb) CollectPacketEvent(report *tcollector.PacketReport) {}
+
+// CollectCounterEvent collect counters from the datapath
+func (d *Influxdb) CollectCounterEvent(report *tcollector.CounterReport) {}
+
+// CollectDNSRequests collect counters from the datapath
+func (d *Influxdb) CollectDNSRequests(report *tcollector.DNSRequestReport) {}
