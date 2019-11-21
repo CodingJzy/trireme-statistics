@@ -1,7 +1,6 @@
 package influxdb
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 
