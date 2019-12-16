@@ -110,13 +110,17 @@ func (w *worker) doCollectContainerEvent(record *collector.ContainerRecord) erro
 	default:
 		return fmt.Errorf("Unrecognized container event name %s ", record.Event)
 	}
+	var IPAddress string
+	for _, v := range record.IPAddress {
+		IPAddress = v
+	}
 
 	return w.db.AddData(map[string]string{
 		"EventName": eventName,
 		"EventID":   record.ContextID,
 	}, map[string]interface{}{
 		"ContextID": record.ContextID,
-		"IPAddress": record.IPAddress,
+		"IPAddress": IPAddress,
 		"Tags":      record.Tags,
 		"Event":     record.Event,
 	})
